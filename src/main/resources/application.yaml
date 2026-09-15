@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: policy-impact
+
+  web:
+    resources:
+      static-locations: classpath:/META-INF/resources/,classpath:/resources/,classpath:/static/,classpath:/public/,file:./app/
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/policy_impact}
+    username: ${DATABASE_USERNAME:policy_user}
+    password: ${DATABASE_PASSWORD:policy_password}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  ai:
+    model:
+      embedding: ollama
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        model: ${OLLAMA_EMBEDDING_MODEL:mxbai-embed-large}
+      chat:
+        model: ${OLLAMA_CHAT_MODEL:llama3.2}
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        dimensions: 1024
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        schema-name: public
+        table-name: policy_chunks
+        schema-validation: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+server:
+  error:
+    include-message: never

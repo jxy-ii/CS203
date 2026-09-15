@@ -1,0 +1,90 @@
+package mygrant.ingestion;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Optional;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import mygrant.ingestion.dto.IngestPolicyRequest;
+import mygrant.policies.PolicyDocument;
+import mygrant.policies.PolicyDocumentRepository;
+import mygrant.policies.PolicyStatus;
+import mygrant.policies.SourceType;
+
+@ExtendWith(MockitoExtension.class)
+class PolicyIngestionServiceTests {
+
+    @Mock
+    private PolicyDocumentRepository repository;
+
+    @Mock
+    private VectorStore vectorStore;
+
+    @Test
+    void indexesANewPolicyDocument() {
+        IngestPolicyRequest request = request();
+        when(repository.findByExternalId(request.externalId())).thenReturn(Optional.empty());
+        when(repository.save(any(PolicyDocument.class))).thenAnswer(invocation -> {
+            PolicyDocument policy = invocation.getArgument(0);
+            if (policy.getId() == null) {
+                ReflectionTestUtils.setField(policy, "id", 1L);
+            }
+            return policy;
+        });
+
+        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore);
+        var response = service.ingest(request);
+
+        assertThat(response.policyId()).isEqualTo(1L);
+        assertThat(response.externalId()).isEqualTo("2026-14439");
+        assertThat(response.chunksIndexed()).isPositive();
+        assertThat(response.alreadyIndexed()).isFalse();
+        verify(vectorStore).add(any());
+    }
+
+    @Test
+    void doesNotReindexIdenticalContent() {
+        IngestPolicyRequest request = request();
+        PolicyDocument existing = new PolicyDocument(
+                request.externalId(), request.title(), request.agency(), request.visaType(),
+                request.status(), request.sourceType(), request.publicationDate(), request.effectiveDate(),
+                request.sourceUrl(), request.content(),
+                "2ff56864fc3aedd98dca20508ca6f86472f5eb0137b33f845b2be5bafa6e28a9");
+        ReflectionTestUtils.setField(existing, "id", 1L);
+        existing.markIndexed(Instant.parse("2026-09-15T00:00:00Z"));
+        when(repository.findByExternalId(request.externalId())).thenReturn(Optional.of(existing));
+
+        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore);
+        var response = service.ingest(request);
+
+        assertThat(response.alreadyIndexed()).isTrue();
+        assertThat(response.chunksIndexed()).isZero();
+        verify(vectorStore, never()).add(any());
+    }
+
+    private IngestPolicyRequest request() {
+        return new IngestPolicyRequest(
+                "2026-14439",
+                "Fixed Time Period of Admission",
+                "Department of Homeland Security",
+                "F-1",
+                PolicyStatus.FINAL,
+                SourceType.PRIMARY,
+                LocalDate.of(2026, 7, 17),
+                LocalDate.of(2026, 9, 15),
+                "https://www.federalregister.gov/example",
+                "Recent policy text for the retrieval demonstration.");
+    }
+}
