@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
 
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
@@ -20,6 +21,7 @@ import mygrant.ingestion.dto.IngestionResponse;
 import mygrant.policies.PolicyDocument;
 import mygrant.policies.PolicyDocumentRepository;
 
+/** Stores complete policy records and their searchable, visa-tagged vector chunks. */
 @Service
 public class PolicyIngestionService {
 
@@ -33,8 +35,18 @@ public class PolicyIngestionService {
         this.textSplitter = new TokenTextSplitter();
     }
 
+    /** Stores and indexes all content supplied by a manual ingestion request. */
     @Transactional
     public IngestionResponse ingest(IngestPolicyRequest request) {
+        return ingest(request, request.content());
+    }
+
+    /** Stores the full policy while indexing a selected excerpt for retrieval. */
+    @Transactional
+    public IngestionResponse ingest(IngestPolicyRequest request, String indexedContent) {
+        if (indexedContent == null || indexedContent.isBlank()) {
+            throw new IllegalArgumentException("Indexed policy content must not be blank");
+        }
         String contentHash = calculateHash(request.content());
         var existing = policyRepository.findByExternalId(request.externalId());
 
@@ -53,8 +65,12 @@ public class PolicyIngestionService {
                 request.sourceUrl(), request.content(), contentHash);
 
         PolicyDocument saved = policyRepository.save(policy);
-        Document source = new Document(saved.getExternalId(), saved.getContent(), createMetadata(saved));
-        List<Document> chunks = textSplitter.apply(List.of(source));
+        List<Document> sources = Arrays.stream(saved.getVisaType().split(","))
+                .map(String::trim)
+                .map(visaType -> new Document(saved.getExternalId() + ":" + visaType,
+                        indexedContent, createMetadata(saved, visaType)))
+                .toList();
+        List<Document> chunks = textSplitter.apply(sources);
 
         vectorStore.add(chunks);
 
@@ -65,13 +81,13 @@ public class PolicyIngestionService {
         return new IngestionResponse(saved.getId(), saved.getExternalId(), chunks.size(), indexedAt, false);
     }
 
-    private Map<String, Object> createMetadata(PolicyDocument policy) {
+    private Map<String, Object> createMetadata(PolicyDocument policy, String visaType) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("policyId", policy.getId().toString());
         metadata.put("externalId", policy.getExternalId());
         metadata.put("title", policy.getTitle());
         metadata.put("agency", policy.getAgency());
-        metadata.put("visaType", policy.getVisaType());
+        metadata.put("visaType", visaType);
         metadata.put("status", policy.getStatus().name());
         metadata.put("sourceType", policy.getSourceType().name());
         metadata.put("publicationDate", policy.getPublicationDate().toString());
@@ -83,7 +99,11 @@ public class PolicyIngestionService {
     }
 
     private String normalizeVisaType(String visaType) {
-        return visaType.trim().toUpperCase();
+        return Arrays.stream(visaType.split(","))
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(","));
     }
 
     private String calculateHash(String content) {

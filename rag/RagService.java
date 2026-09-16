@@ -17,6 +17,7 @@ import mygrant.rag.dto.CitationResponse;
 import mygrant.rag.dto.RagQueryRequest;
 import mygrant.rag.dto.RagQueryResponse;
 
+/** Retrieves visa-filtered policy evidence and generates cited, review-aware answers. */
 @Service
 public class RagService {
 
@@ -34,12 +35,13 @@ public class RagService {
         this.evidenceRanker = evidenceRanker;
     }
 
+    /** Answers from retrieved evidence or returns an insufficient-evidence response. */
     public RagQueryResponse query(RagQueryRequest request) {
         String visaType = validateVisaType(request.visaType());
         SearchRequest searchRequest = SearchRequest.builder()
                 .query(request.question())
                 .topK(5)
-                .similarityThreshold(0.70)
+                .similarityThreshold(0.55)
                 .filterExpression("visaType == '" + visaType + "'")
                 .build();
 

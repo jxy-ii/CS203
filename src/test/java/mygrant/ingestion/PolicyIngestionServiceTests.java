@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -23,6 +25,7 @@ import mygrant.policies.PolicyDocumentRepository;
 import mygrant.policies.PolicyStatus;
 import mygrant.policies.SourceType;
 
+/** Verifies policy storage, selected-excerpt indexing, and idempotent re-imports. */
 @ExtendWith(MockitoExtension.class)
 class PolicyIngestionServiceTests {
 
@@ -72,6 +75,26 @@ class PolicyIngestionServiceTests {
         assertThat(response.alreadyIndexed()).isTrue();
         assertThat(response.chunksIndexed()).isZero();
         verify(vectorStore, never()).add(any());
+    }
+
+    @Test
+    void retainsFullPolicyButIndexesOnlyTheSelectedExcerpt() {
+        IngestPolicyRequest request = request();
+        when(repository.findByExternalId(request.externalId())).thenReturn(Optional.empty());
+        when(repository.save(any(PolicyDocument.class))).thenAnswer(invocation -> {
+            PolicyDocument policy = invocation.getArgument(0);
+            if (policy.getId() == null) {
+                ReflectionTestUtils.setField(policy, "id", 1L);
+            }
+            return policy;
+        });
+
+        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore);
+        service.ingest(request, "Selected summary only.");
+
+        verify(repository, atLeastOnce()).save(argThat(policy -> policy.getContent().equals(request.content())));
+        verify(vectorStore).add(argThat(chunks -> chunks.stream()
+                .allMatch(chunk -> chunk.getText().contains("Selected summary only."))));
     }
 
     private IngestPolicyRequest request() {

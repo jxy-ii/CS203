@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** Read-only HTTP access to stored policy records. */
 @RestController
 @RequestMapping("/policies")
 public class PolicyController {

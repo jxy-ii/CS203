@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/** Persisted source policy, including its complete text and indexing status. */
 @Entity
 @Table(name = "policy_documents")
 public class PolicyDocument {

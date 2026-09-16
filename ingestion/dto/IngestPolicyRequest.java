@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 import mygrant.policies.PolicyStatus;
 import mygrant.policies.SourceType;
 
+/** Validated policy metadata and source text accepted by manual ingestion. */
 public record IngestPolicyRequest(
         @NotBlank @Size(max = 255) String externalId,
         @NotBlank @Size(max = 1000) String title,
