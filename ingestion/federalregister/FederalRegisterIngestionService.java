@@ -59,7 +59,9 @@ public class FederalRegisterIngestionService {
                 content), content.substring(0, Math.min(content.length(), MAX_INDEX_CHARACTERS)));
 
         return new FederalRegisterIngestionResponse(
-                document.documentNumber(), classification.affectsF1(), classification.affectsJ1(),
+                document.documentNumber(), document.title(), document.type(), agencyNames(document),
+                document.publicationDate(), document.effectiveDate(), document.htmlUrl(),
+                classification.affectsF1(), classification.affectsJ1(),
                 classification.affectsH1b(), classification.visaTypes(),
                 classification.matchedSignals(), ingestion);
     }

@@ -16,6 +16,7 @@ import mygrant.common.Confidence;
 import mygrant.rag.dto.CitationResponse;
 import mygrant.rag.dto.RagQueryRequest;
 import mygrant.rag.dto.RagQueryResponse;
+import mygrant.rag.dto.RetrievedEvidenceResponse;
 
 /** Retrieves visa-filtered policy evidence and generates cited, review-aware answers. */
 @Service
@@ -72,8 +73,9 @@ public class RagService {
                 .call()
                 .content();
 
+        List<CitationResponse> citations = createCitations(evidence);
         return new RagQueryResponse(answer, assessment.confidence(), assessment.requiresReview(),
-                createCitations(evidence), assessment.warnings());
+                citations, createRetrievedEvidence(evidence, citations), assessment.warnings());
     }
 
     private String formatEvidence(List<Document> evidence) {
@@ -106,6 +108,27 @@ public class RagService {
                     document.getScore()));
         }
         return List.copyOf(citations.values());
+    }
+
+    private List<RetrievedEvidenceResponse> createRetrievedEvidence(List<Document> evidence,
+            List<CitationResponse> citations) {
+        Map<String, Integer> citationNumbers = new LinkedHashMap<>();
+        for (int index = 0; index < citations.size(); index++) {
+            citationNumbers.put(citations.get(index).externalId(), index + 1);
+        }
+
+        return evidence.stream()
+                .map(document -> new RetrievedEvidenceResponse(
+                        citationNumbers.getOrDefault(metadata(document, "externalId"), 0),
+                        metadata(document, "externalId"),
+                        metadata(document, "title"),
+                        metadata(document, "agency"),
+                        metadata(document, "status"),
+                        metadata(document, "sourceType"),
+                        metadata(document, "sourceUrl"),
+                        document.getScore(),
+                        evidenceSnippet(document.getText())))
+                .toList();
     }
 
     private Assessment assess(List<Document> evidence) {
@@ -143,7 +166,16 @@ public class RagService {
                 Confidence.LOW,
                 true,
                 List.of(),
+                List.of(),
                 List.of("Human review is required.", DISCLAIMER));
+    }
+
+    private String evidenceSnippet(String text) {
+        String normalized = text == null ? "" : text
+                .replaceAll("<[^>]+>", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return normalized.length() <= 800 ? normalized : normalized.substring(0, 800) + "...";
     }
 
     private String validateVisaType(String visaType) {

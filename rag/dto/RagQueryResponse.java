@@ -9,6 +9,7 @@ public record RagQueryResponse(
         Confidence confidence,
         boolean requiresReview,
         List<CitationResponse> citations,
+        List<RetrievedEvidenceResponse> retrievedEvidence,
         List<String> warnings
 ) {
 }

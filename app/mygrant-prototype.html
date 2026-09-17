@@ -202,13 +202,29 @@
   .rag-error{border-left:4px solid var(--urgent);background:var(--urgent-bg);padding:14px 16px;margin-bottom:20px;font-size:13.5px;line-height:1.5;}
   .citation-link{display:block;text-decoration:none;}
   .citation-link:hover{border-color:var(--ink);}
+  .rag-import-form{display:grid;grid-template-columns:220px auto 1fr;gap:10px;align-items:end;background:var(--panel);border:1px solid var(--line);padding:18px;margin-bottom:20px;}
+  .rag-import-form input{font-family:var(--sans);font-size:14px;padding:10px 12px;border:1px solid var(--line);background:#FCFBF8;width:100%;}
+  .rag-import-form .btn:disabled{opacity:.55;cursor:wait;}
+  .ingest-result{border-left:3px solid var(--calm);background:var(--calm-bg);padding:12px 14px;font-size:13px;line-height:1.55;}
+  .proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px;}
+  .proof-card{background:var(--panel);border:1px solid var(--line);padding:14px 16px;min-height:112px;}
+  .proof-kicker{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-bottom:10px;}
+  .proof-card h3{font-family:var(--serif);font-size:15.5px;margin:0 0 6px;}
+  .proof-card p{font-size:12.5px;line-height:1.5;color:var(--muted);margin:0;}
+  .live-pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:3px 7px;margin-top:10px;background:var(--caution-bg);color:var(--caution);}
+  .live-pill.pass{background:var(--calm-bg);color:var(--calm);}
+  .source-card{background:var(--panel);border:1px solid var(--line);padding:18px;margin:0 0 22px;}
+  .source-title{font-family:var(--serif);font-size:18px;line-height:1.35;margin:0 0 10px;}
+  .source-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  .evidence-meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+  .evidence-pill{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);padding:3px 7px;color:var(--muted);background:#FBFAF6;}
   .warning-list{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:13px;line-height:1.6;}
   @media (max-width:800px){
     #app.active{grid-template-columns:1fr;}
     .sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap;}
     .login-card{grid-template-columns:1fr;}
     .form-grid{grid-template-columns:1fr;}
-    .stat-row,.rag-query-form{grid-template-columns:1fr;}
+    .stat-row,.rag-query-form,.rag-import-form,.proof-grid{grid-template-columns:1fr;}
   }
 </style>
 </head>
@@ -348,7 +364,8 @@ let sources = [
   {name:'Visa Bulletin', status:'ok', last:'1 day ago'},
 ];
 
-let state = { role:null, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1' };
+const initialState = () => ({ role:null, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
+let state = initialState();
 
 /* ---------- RAG pipeline scenarios ----------
    Each one traces a real /rag/query call end to end so you can see, at every
@@ -422,7 +439,7 @@ function enterApp(role){
   goto(first);
 }
 function logout(){
-  state = { role:null, view:null, openAlert:null };
+  state = initialState();
   document.getElementById('app').classList.remove('active');
   document.getElementById('login').style.display='flex';
 }
@@ -709,24 +726,43 @@ function selectRag(key){ state.ragActive = key; render(); }
    screens remain demonstrative; this screen always calls the Spring API. */
 function renderRag(){
   const result = state.ragResult;
-  const citations = result ? result.citations.map((citation, index)=>{
-    const score = typeof citation.similarityScore === 'number' ? citation.similarityScore : 0;
-    return `<a class="chunk used citation-link" href="${escapeAttribute(citation.sourceUrl)}" target="_blank" rel="noopener noreferrer">
+  const evidenceItems = result ? (result.retrievedEvidence && result.retrievedEvidence.length ? result.retrievedEvidence : result.citations.map((citation, index)=>({...citation,citationNumber:index+1,snippet:''}))) : [];
+  const ingest = state.ingestResult;
+  const evidence = result ? evidenceItems.map((item, index)=>{
+    const score = typeof item.similarityScore === 'number' ? item.similarityScore : 0;
+    const citationNumber = item.citationNumber || index + 1;
+    return `<a class="chunk used citation-link" href="${escapeAttribute(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">
       <div class="chunk-head">
-        <div class="chunk-source">[${index + 1}] ${escapeHtml(citation.agency)} &mdash; ${escapeHtml(citation.title)}</div>
+        <div class="chunk-source">[${citationNumber}] ${escapeHtml(item.agency)} &mdash; ${escapeHtml(item.title)}</div>
         <div class="chunk-right"><div class="score-bar"><i style="width:${Math.max(0,Math.min(100,score*100))}%"></i></div><div class="score-num">${score.toFixed(2)}</div></div>
       </div>
-      <div class="chunk-snippet">${escapeHtml(citation.status)} &middot; ${escapeHtml(citation.sourceType)} &middot; published ${escapeHtml(citation.publicationDate)}</div>
+      <div class="evidence-meta">
+        <span class="evidence-pill">${escapeHtml(item.externalId)}</span>
+        <span class="evidence-pill">${escapeHtml(item.status)}</span>
+        <span class="evidence-pill">${escapeHtml(item.sourceType)}</span>
+      </div>
+      ${item.snippet ? `<div class="chunk-snippet">"${escapeHtml(item.snippet)}"</div>` : '<div class="chunk-snippet">Citation metadata returned; chunk snippet unavailable from this backend response.</div>'}
     </a>`;
   }).join('') : '';
   const warnings = result && result.warnings.length
     ? `<ul class="warning-list">${result.warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('')}</ul>` : '';
+  const ingestSummary = ingest ? `<div class="ingest-result">
+    Imported ${escapeHtml(ingest.documentNumber)} from Federal Register. Detected ${escapeHtml((ingest.detectedVisaTypes || []).join(', ') || 'no supported visa type')}; ${escapeHtml(ingest.ingestion?.alreadyIndexed ? 'existing vector chunks reused' : `${ingest.ingestion?.chunksIndexed ?? 0} vector chunk(s) indexed`)}.
+  </div>` : '';
 
   return `
     <div class="page-head">
       <h1>RAG inspector</h1>
-      <p class="sub">Ask the live Spring Boot RAG pipeline. Answers are retrieved from pgvector and generated by Ollama.</p>
+      <p class="sub">Import a Federal Register document, then ask the live Spring Boot RAG pipeline. Answers are retrieved from pgvector and generated by Ollama.</p>
     </div>
+    ${renderProofGrid(ingest, result, evidenceItems)}
+    <form class="rag-import-form" onsubmit="submitFederalRegisterImport(event)">
+      <div class="field"><label for="fr-doc-number">Federal Register document number</label><input id="fr-doc-number" required value="${escapeAttribute(state.frDocNumber)}"></div>
+      <button class="btn ghost" type="submit" ${state.ingestLoading?'disabled':''}>${state.ingestLoading?'Importing...':'Import source'}</button>
+      ${ingestSummary || '<div class="rag-status" style="margin:0;">Try <code>2026-14439</code> to import the F-1/J-1 fixed admission rule.</div>'}
+    </form>
+    ${state.ingestError?`<div class="rag-error"><strong>Import failed.</strong><br>${escapeHtml(state.ingestError)}</div>`:''}
+    ${ingest ? renderFederalRegisterSource(ingest) : ''}
     <form class="rag-query-form" onsubmit="submitRagQuery(event)">
       <div class="field"><label for="rag-question">Ask about an indexed policy</label><input id="rag-question" maxlength="2000" required placeholder="How does the new fixed admission period affect an F-1 student?" value="${escapeAttribute(state.ragQuestion)}"></div>
       <div class="field"><label for="rag-visa-type">Visa category</label><select id="rag-visa-type"><option ${state.ragVisaType==='F-1'?'selected':''}>F-1</option><option ${state.ragVisaType==='J-1'?'selected':''}>J-1</option><option ${state.ragVisaType==='H-1B'?'selected':''}>H-1B</option></select></div>
@@ -736,10 +772,74 @@ function renderRag(){
     ${state.ragError?`<div class="rag-error"><strong>Query failed.</strong><br>${escapeHtml(state.ragError)}</div>`:''}
     ${!result && !state.ragLoading && !state.ragError?'<div class="empty"><div class="big">Ask a real policy question</div>The response comes from PostgreSQL + pgvector and Ollama, not from this HTML file.</div>':''}
     ${result?`<div class="step"><div class="step-title"><span class="step-num">1</span>Query + profile filter</div><p style="font-size:14.5px;margin:0 0 10px;">"${escapeHtml(state.ragQuestion)}"</p><div class="filter-line">Filtered to visaType = ${escapeHtml(state.ragVisaType)}</div></div>
-    <div class="step"><div class="step-title"><span class="step-num">2</span>Retrieved evidence</div>${citations || '<div class="empty">No evidence passed the similarity threshold.</div>'}</div>
+    <div class="step"><div class="step-title"><span class="step-num">2</span>Retrieved chunks</div>${evidence || '<div class="empty">No evidence passed the similarity threshold.</div>'}</div>
     <div class="step"><div class="step-title"><span class="step-num">3</span>Grounded answer</div><div class="answer-box">${escapeHtml(result.answer).replace(/\n/g,'<br>')}</div></div>
-    <div class="step"><div class="step-title"><span class="step-num">4</span>Assessment</div><div class="guard-row"><div><div class="gname">Confidence</div><div class="detail">Calculated by the backend from source authority, policy status, and retrieval score.</div></div><div class="guard-badge ${result.confidence==='LOW'?'fail':'pass'}">${escapeHtml(result.confidence)}</div></div>${warnings}</div>
+    <div class="step"><div class="step-title"><span class="step-num">4</span>Assessment</div><div class="guard-row"><div><div class="gname">Confidence</div><div class="detail">Calculated by the backend from source authority, policy status, and retrieval score.</div></div><div class="guard-badge ${result.confidence==='LOW'?'fail':'pass'}">${escapeHtml(result.confidence)}</div></div><div class="guard-row"><div><div class="gname">Citations</div><div class="detail">${escapeHtml((result.citations || []).length)} source record(s) returned, ${escapeHtml(evidenceItems.length)} retrieved chunk(s) shown above.</div></div><div class="guard-badge ${(result.citations || []).length?'pass':'fail'}">${(result.citations || []).length?'Linked':'Missing'}</div></div>${warnings}</div>
     <div class="step"><div class="step-title"><span class="step-num">5</span>Outcome</div><div class="outcome-banner ${result.requiresReview?'queued':''}"><h4>${result.requiresReview?'Human review required':'Answer ready'}</h4><div>${result.requiresReview?'Verify this response against its cited primary sources before relying on it.':'Strong evidence was retrieved, but this remains informational guidance.'}</div></div></div>`:''}`;
+}
+function renderProofGrid(ingest, result, evidenceItems){
+  const indexed = ingest && (ingest.ingestion?.alreadyIndexed || (ingest.ingestion?.chunksIndexed ?? 0) > 0);
+  const answerReady = result && result.answer;
+  return `<div class="proof-grid">
+    <div class="proof-card">
+      <div class="proof-kicker">STEP 1 · FEDERAL API</div>
+      <h3>${ingest ? escapeHtml(ingest.documentNumber) : 'Waiting for import'}</h3>
+      <p>${ingest ? escapeHtml(ingest.title || 'Federal Register source loaded') : 'Enter a Federal Register document number and import it from the live backend.'}</p>
+      <span class="live-pill ${ingest?'pass':''}">${ingest?'Source loaded':'Not started'}</span>
+    </div>
+    <div class="proof-card">
+      <div class="proof-kicker">STEP 2 · VECTOR INDEX</div>
+      <h3>${indexed ? (ingest.ingestion?.alreadyIndexed ? 'Already indexed' : `${escapeHtml(ingest.ingestion?.chunksIndexed ?? 0)} chunks`) : 'No chunks yet'}</h3>
+      <p>${indexed ? `Visa filter: ${escapeHtml((ingest.detectedVisaTypes || []).join(', ') || 'unknown')}` : 'The import stores the policy and writes searchable chunks to pgvector.'}</p>
+      <span class="live-pill ${indexed?'pass':''}">${indexed?'Ready for RAG':'Waiting'}</span>
+    </div>
+    <div class="proof-card">
+      <div class="proof-kicker">STEP 3 · RAG ANSWER</div>
+      <h3>${answerReady ? `${escapeHtml(evidenceItems.length)} chunks retrieved` : 'Ask a question'}</h3>
+      <p>${answerReady ? `${escapeHtml((result.citations || []).length)} citation(s), confidence ${escapeHtml(result.confidence)}` : 'The answer below is generated from retrieved policy evidence, not pasted JSON.'}</p>
+      <span class="live-pill ${answerReady?'pass':''}">${answerReady?'Answer generated':'Waiting'}</span>
+    </div>
+  </div>`;
+}
+function renderFederalRegisterSource(ingest){
+  const signals = (ingest.matchedSignals || []).map(signal=>`<span class="evidence-pill">${escapeHtml(signal)}</span>`).join('');
+  const visas = (ingest.detectedVisaTypes || []).map(visa=>`<span class="evidence-pill">${escapeHtml(visa)}</span>`).join('');
+  return `<div class="source-card">
+    <div class="proof-kicker">FEDERAL REGISTER SOURCE</div>
+    <h2 class="source-title">${escapeHtml(ingest.title || ingest.documentNumber)}</h2>
+    <div class="evidence-meta">
+      <span class="evidence-pill">${escapeHtml(ingest.documentNumber)}</span>
+      <span class="evidence-pill">${escapeHtml(ingest.type || 'Document')}</span>
+      <span class="evidence-pill">Published ${escapeHtml(formatDate(ingest.publicationDate))}</span>
+      ${ingest.effectiveDate ? `<span class="evidence-pill">Effective ${escapeHtml(formatDate(ingest.effectiveDate))}</span>` : ''}
+    </div>
+    <p style="font-size:13.5px;line-height:1.6;color:var(--muted);margin:10px 0 0;">${escapeHtml(ingest.agency || 'Unknown agency')}</p>
+    <div class="block-label">Detected visa categories</div>
+    <div class="evidence-meta">${visas || '<span class="evidence-pill">None</span>'}</div>
+    <div class="block-label">Classifier signals from the Federal Register text</div>
+    <div class="evidence-meta">${signals || '<span class="evidence-pill">No signals returned</span>'}</div>
+    <div class="source-actions">
+      <a class="btn ghost small" href="${escapeAttribute(ingest.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open Federal Register source</a>
+    </div>
+  </div>`;
+}
+async function submitFederalRegisterImport(event){
+  event.preventDefault();
+  const documentNumber = document.getElementById('fr-doc-number').value.trim();
+  if(!documentNumber) return;
+  Object.assign(state,{frDocNumber:documentNumber,ingestLoading:true,ingestResult:null,ingestError:null});
+  render();
+  try{
+    const response = await fetch(`/ingestion/federal-register/${encodeURIComponent(documentNumber)}`,{method:'POST'});
+    const body = await response.json().catch(()=>null);
+    if(!response.ok) throw new Error(body?.message || body?.error || `Backend returned HTTP ${response.status}`);
+    state.ingestResult = body;
+  }catch(error){
+    state.ingestError = error instanceof TypeError ? 'Cannot reach Spring Boot. Open this page through http://localhost:8080, not directly as a file.' : error.message;
+  }finally{
+    state.ingestLoading = false;
+    render();
+  }
 }
 async function submitRagQuery(event){
   event.preventDefault();
@@ -764,6 +864,11 @@ function escapeHtml(value){
   return String(value ?? '').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
 function escapeAttribute(value){ return escapeHtml(value); }
+function formatDate(value){
+  if(!value) return 'unknown date';
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+}
 
 function addSource(){
   const name = document.getElementById('modal-name').value.trim();
