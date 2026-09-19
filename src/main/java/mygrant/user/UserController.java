@@ -1,6 +1,5 @@
 package mygrant.user;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,24 +21,15 @@ public class UserController {
         this.userService = userService;
     }
 
-    @PostMapping("/api/users")
+    @PostMapping("/api/v1/auth/register")
     public ResponseEntity<?> receiveRequest(@Valid @RequestBody UserCreation userCreation) {
-        try {
-            LoginResponse result = userService.createUser(userCreation);
-            return ResponseEntity.ok(result);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        LoginResponse result = userService.createUser(userCreation);
+        return ResponseEntity.ok(result);
     }
 
-    @PostMapping("/api/login")
+    @PostMapping("/api/v1/auth/login")
     public ResponseEntity<?> login(@Valid @RequestBody UserLogin userLogin) {
-        try {
-            LoginResponse response = userService.loginUser(userLogin);
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(e.getMessage());
-        }
+        LoginResponse response = userService.loginUser(userLogin);
+        return ResponseEntity.ok(response);
     }
 }

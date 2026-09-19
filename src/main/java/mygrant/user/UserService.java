@@ -6,6 +6,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import mygrant.auth.JwtService;
+import mygrant.common.InvalidCredentialsException;
 import mygrant.user.dto.LoginResponse;
 import mygrant.user.dto.UserCreation;
 import mygrant.user.dto.UserLogin;
@@ -54,13 +55,13 @@ public class UserService {
                 userLogin.getUserEmail().trim().toLowerCase());
 
         if (optionalUser.isEmpty()) {
-            throw new IllegalArgumentException("Invalid email or password");
+            throw new InvalidCredentialsException("Invalid email or password");
         }
 
         User user = optionalUser.get();
 
         if (!passwordEncoder.matches(userLogin.getUserPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid email or password");
+            throw new InvalidCredentialsException("Invalid email or password");
         }
 
         String token = jwtService.generateToken(user.getEmail());
