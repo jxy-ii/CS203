@@ -33,7 +33,11 @@ spring:
         distance-type: COSINE_DISTANCE
         schema-name: public
         table-name: policy_chunks
-        schema-validation: false
+      schema-validation: false
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
 
 springdoc:
   swagger-ui:

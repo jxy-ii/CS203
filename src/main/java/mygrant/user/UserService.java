@@ -1,5 +1,6 @@
 package mygrant.user;
 
+import mygrant.auth.JwtService;
 import mygrant.user.dto.UserCreation;
 import mygrant.user.dto.UserLogin;
 import mygrant.user.dto.LoginResponse;
@@ -13,10 +14,14 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public UserService(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository,
+                       BCryptPasswordEncoder passwordEncoder,
+                       JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     public LoginResponse createUser(UserCreation userCreation) {
@@ -147,6 +152,7 @@ public class UserService {
             throw new IllegalArgumentException("Invalid email/username or password");
         }
 
-        return new LoginResponse(user);
+        String token = jwtService.generateToken(user.getEmail());
+        return new LoginResponse(user, token);
     }
 }

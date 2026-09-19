@@ -11,7 +11,7 @@ public class LoginResponse {
     private String visaType;
     private String academicLevel;
     private LocalDate programEndDate;
-    private String token; // Optional placeholder for JWT authentication
+    private String token; // JWT authentication token returned after successful authentication
 
     public LoginResponse() {}
 
