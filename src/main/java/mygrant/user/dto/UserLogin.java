@@ -1,20 +1,17 @@
 package mygrant.user.dto;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
 public class UserLogin {
 
-    private String userName;
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email must be valid")
     private String userEmail;
+
+    @NotBlank(message = "Password is required")
     private String userPassword;
-
     public UserLogin() {}
-
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
 
     public String getUserEmail() {
         return userEmail;

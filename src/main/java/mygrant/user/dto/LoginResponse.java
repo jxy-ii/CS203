@@ -1,7 +1,9 @@
 package mygrant.user.dto;
 
-import mygrant.user.User;
 import java.time.LocalDate;
+
+import mygrant.user.User;
+import mygrant.user.UserRole;
 
 public class LoginResponse {
 
@@ -12,6 +14,7 @@ public class LoginResponse {
     private String academicLevel;
     private LocalDate programEndDate;
     private String token; // Optional placeholder for JWT authentication
+    private UserRole role;
 
     public LoginResponse() {}
 
@@ -23,6 +26,7 @@ public class LoginResponse {
         this.visaType = user.getVisaType();
         this.academicLevel = user.getAcademicLevel();
         this.programEndDate = user.getProgramEndDate();
+        this.role = user.getRole();
     }
 
     public LoginResponse(User user, String token) {
@@ -86,5 +90,13 @@ public class LoginResponse {
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    public UserRole getRole() {
+        return role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role;
     }
 }

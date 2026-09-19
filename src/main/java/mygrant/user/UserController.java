@@ -1,11 +1,16 @@
 package mygrant.user;
 
-import mygrant.user.dto.UserCreation;
-import mygrant.user.dto.UserLogin;
-import mygrant.user.dto.LoginResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
+import mygrant.user.dto.LoginResponse;
+import mygrant.user.dto.UserCreation;
+import mygrant.user.dto.UserLogin;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -18,7 +23,7 @@ public class UserController {
     }
 
     @PostMapping("/api/users")
-    public ResponseEntity<?> receiveRequest(@RequestBody UserCreation userCreation) {
+    public ResponseEntity<?> receiveRequest(@Valid @RequestBody UserCreation userCreation) {
         try {
             LoginResponse result = userService.createUser(userCreation);
             return ResponseEntity.ok(result);
@@ -28,7 +33,7 @@ public class UserController {
     }
 
     @PostMapping("/api/login")
-    public ResponseEntity<?> login(@RequestBody UserLogin userLogin) {
+    public ResponseEntity<?> login(@Valid @RequestBody UserLogin userLogin) {
         try {
             LoginResponse response = userService.loginUser(userLogin);
             return ResponseEntity.ok(response);
