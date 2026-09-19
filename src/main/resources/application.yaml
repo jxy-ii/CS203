@@ -35,6 +35,10 @@ spring:
         table-name: policy_chunks
         schema-validation: false
 
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

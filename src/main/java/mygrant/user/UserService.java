@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import mygrant.auth.JwtService;
 import mygrant.user.dto.LoginResponse;
 import mygrant.user.dto.UserCreation;
 import mygrant.user.dto.UserLogin;
@@ -14,14 +15,18 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public UserService(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+    public UserService(
+            UserRepository userRepository,
+            BCryptPasswordEncoder passwordEncoder,
+            JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     public LoginResponse createUser(UserCreation userCreation) {
-
         String email = userCreation.getUserEmail().trim().toLowerCase();
         String userName = userCreation.getUserName().trim();
 
@@ -35,20 +40,18 @@ public class UserService {
         user.setVisaType(userCreation.getVisaType());
         user.setAcademicLevel(userCreation.getAcademicLevel());
         user.setProgramEndDate(userCreation.getProgramEndDate());
-        user.setRole(UserRole.APPLICANT); 
-
-        String hashedPassword = passwordEncoder.encode(userCreation.getUserPassword());
-        user.setPasswordHash(hashedPassword);
+        user.setRole(UserRole.APPLICANT);
+        user.setPasswordHash(passwordEncoder.encode(userCreation.getUserPassword()));
 
         User savedUser = userRepository.save(user);
-        return new LoginResponse(savedUser);
+        String token = jwtService.generateToken(savedUser.getEmail());
+
+        return new LoginResponse(savedUser, token);
     }
 
     public LoginResponse loginUser(UserLogin userLogin) {
-        String userPassword = userLogin.getUserPassword();
-
-        Optional<User> optionalUser =
-        userRepository.findByEmail(userLogin.getUserEmail().trim().toLowerCase());
+        Optional<User> optionalUser = userRepository.findByEmail(
+                userLogin.getUserEmail().trim().toLowerCase());
 
         if (optionalUser.isEmpty()) {
             throw new IllegalArgumentException("Invalid email or password");
@@ -56,10 +59,11 @@ public class UserService {
 
         User user = optionalUser.get();
 
-        if (!passwordEncoder.matches(userPassword, user.getPasswordHash())) {
+        if (!passwordEncoder.matches(userLogin.getUserPassword(), user.getPasswordHash())) {
             throw new IllegalArgumentException("Invalid email or password");
         }
 
-        return new LoginResponse(user);
+        String token = jwtService.generateToken(user.getEmail());
+        return new LoginResponse(user, token);
     }
 }
