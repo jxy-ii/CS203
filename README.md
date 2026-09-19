@@ -35,6 +35,63 @@ Start Spring Boot from the `CS203` directory:
 ./mvnw spring-boot:run
 ```
 
+### Authentication and JWT
+
+The application uses JWT bearer tokens for authenticated requests. The signing
+secret is read from the `JWT_SECRET` environment variable and must not be
+committed to this repository.
+
+From WSL, set the secret in the same terminal session used to start Spring Boot:
+
+```bash
+export JWT_SECRET="$(openssl rand -base64 32)"
+./mvnw spring-boot:run
+```
+
+To check that the secret is set without printing it:
+
+```bash
+echo "${#JWT_SECRET}"
+```
+
+The value should be approximately 44 characters long. If you open a new WSL
+terminal, set `JWT_SECRET` again before starting the application, or store it in
+your local shell configuration. Never commit the secret or add the real value
+to `application.yaml`.
+
+Register a user:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userName": "Test User",
+    "userEmail": "test@example.com",
+    "userPassword": "Password123",
+    "visaType": "F-1",
+    "academicLevel": "Undergraduate",
+    "programEndDate": "2028-05-31"
+  }'
+```
+
+Log in and store the returned JWT:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userEmail": "test@example.com",
+    "userPassword": "Password123"
+  }' | jq -r '.token')
+```
+
+Use the token to access the authenticated profile endpoint:
+
+```bash
+curl -s http://localhost:8080/api/v1/profiles/me \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 Wait for `Started MyGrantApplication` before testing. Keep this terminal open while
 using the API or browser interface. After code changes, stop Spring with `Ctrl+C`
 and run `./mvnw spring-boot:run` again; a running JVM does not reload Java changes.
