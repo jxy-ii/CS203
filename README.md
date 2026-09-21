@@ -32,6 +32,7 @@ ollama serve
 Start Spring Boot from the `CS203` directory:
 
 ```bash
+export JWT_SECRET="$(openssl rand -base64 32)"
 ./mvnw spring-boot:run
 ```
 
@@ -41,10 +42,16 @@ and run `./mvnw spring-boot:run` again; a running JVM does not reload Java chang
 
 The health endpoint is available at `http://localhost:8080/actuator/health`.
 Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
-The interactive myGRANT prototype is available at `http://localhost:8080/`.
+The myGRANT application is available at `http://localhost:8080/`. Create an account
+there or sign in with an existing account. The browser stores the JWT in session storage
+(it is cleared when that browser tab is closed), loads the signed-in profile and matching
+policies from PostgreSQL, and sends the JWT with Federal Register import and RAG requests.
+Do not use VS Code Live Server for normal testing; opening the Spring URL avoids sending
+API requests to the static-file server.
 
 Configuration can be overridden with `DATABASE_URL`, `DATABASE_USERNAME`,
 `DATABASE_PASSWORD`, `OLLAMA_BASE_URL`, and `OLLAMA_EMBEDDING_MODEL`.
+`JWT_SECRET` is required and must be a Base64-encoded key of at least 32 bytes.
 
 ## Architecture
 

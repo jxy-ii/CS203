@@ -62,6 +62,12 @@
   .role-icon{width:34px;height:34px;flex:none;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:16px;color:var(--ink);}
   .role-option .rt{font-weight:600;font-size:14.5px;}
   .role-option .rd{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .auth-tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .auth-tab{flex:1;border:0;border-bottom:2px solid transparent;background:none;padding:10px;color:var(--muted);}
+  .auth-tab.active{border-bottom-color:var(--ink);color:var(--ink);font-weight:600;}
+  .auth-form{display:grid;gap:13px;}
+  .auth-error{background:var(--urgent-bg);color:var(--urgent);padding:10px 12px;font-size:12.5px;line-height:1.45;margin-top:12px;}
+  .auth-status{color:var(--muted);font-size:12px;margin-top:12px;}
 
   /* ---------- APP SHELL ---------- */
   #app{display:none;min-height:100vh;grid-template-columns:232px 1fr;}
@@ -240,7 +246,7 @@
       </div>
       <div class="cite">Federal Register · USCIS · DOL · Visa Bulletin</div>
     </div>
-    <div class="login-right">
+    <div class="login-right" id="legacy-role-login" style="display:none;">
       <h1>Choose how you'd like to look around</h1>
       <p class="sub">This is a prototype — pick a role to see what that person sees. No password needed.</p>
 
@@ -265,6 +271,30 @@
           <div class="rd">Monitored sources and data health</div>
         </div>
       </button>
+    </div>
+    <div class="login-right" id="account-login">
+      <h1>Welcome to myGRANT</h1>
+      <p class="sub">Sign in to access your policy profile and the live RAG pipeline.</p>
+      <div class="auth-tabs">
+        <button id="login-tab" class="auth-tab active" type="button" onclick="showAuthMode('login')">Sign in</button>
+        <button id="register-tab" class="auth-tab" type="button" onclick="showAuthMode('register')">Create account</button>
+      </div>
+      <form id="login-form" class="auth-form" onsubmit="submitLogin(event)">
+        <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
+        <button class="btn" type="submit">Sign in</button>
+      </form>
+      <form id="register-form" class="auth-form" onsubmit="submitRegistration(event)" style="display:none;">
+        <div class="field"><label for="register-name">Full name</label><input id="register-name" minlength="2" maxlength="100" required></div>
+        <div class="field"><label for="register-email">Email</label><input id="register-email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="register-password">Password</label><input id="register-password" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,}" title="At least 8 characters with a letter and number" autocomplete="new-password" required></div>
+        <div class="field"><label for="register-visa">Visa category</label><select id="register-visa" required><option>F-1</option><option>J-1</option><option>H-1B</option></select></div>
+        <div class="field"><label for="register-level">Academic level</label><select id="register-level"><option value="">Not specified</option><option>Undergraduate</option><option>Master's</option><option>PhD</option><option>Other</option></select></div>
+        <div class="field"><label for="register-end-date">Program end date</label><input id="register-end-date" type="date"></div>
+        <button class="btn" type="submit">Create account</button>
+      </form>
+      <div id="auth-error" class="auth-error" style="display:none;"></div>
+      <div id="auth-status" class="auth-status"></div>
     </div>
   </div>
 </div>
@@ -293,8 +323,13 @@
       <a class="nav-link" data-view="rag" onclick="goto('rag')">RAG inspector</a>
     </div>
 
+    <div id="nav-tools" class="nav-group" style="display:none;">
+      <div class="nav-label">Live tools</div>
+      <a class="nav-link" data-view="rag" onclick="goto('rag')">RAG inspector</a>
+    </div>
+
     <div class="sidebar-foot">
-      <button class="switch-role" onclick="logout()">Switch role</button>
+      <button class="switch-role" onclick="logout()">Sign out</button>
     </div>
   </div>
 
@@ -364,7 +399,8 @@ let sources = [
   {name:'Visa Bulletin', status:'ok', last:'1 day ago'},
 ];
 
-const initialState = () => ({ role:null, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
+const API_BASE = location.port === '8080' ? '' : 'http://localhost:8080';
+const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
 let state = initialState();
 
 /* ---------- RAG pipeline scenarios ----------
@@ -434,14 +470,93 @@ function enterApp(role){
   document.getElementById('nav-student').style.display = role==='student' ? 'block':'none';
   document.getElementById('nav-manager').style.display = role==='manager' ? 'block':'none';
   document.getElementById('nav-admin').style.display = role==='admin' ? 'block':'none';
+  document.getElementById('nav-tools').style.display = role!=='admin' ? 'block':'none';
   document.getElementById('role-tag').textContent = role.toUpperCase()+' VIEW';
   const first = role==='student' ? 'dashboard' : role==='manager' ? 'manager' : 'admin';
   goto(first);
+  loadPolicies();
 }
 function logout(){
+  sessionStorage.removeItem('mygrantToken');
   state = initialState();
   document.getElementById('app').classList.remove('active');
   document.getElementById('login').style.display='flex';
+}
+
+function showAuthMode(mode){
+  document.getElementById('login-form').style.display = mode==='login' ? 'grid':'none';
+  document.getElementById('register-form').style.display = mode==='register' ? 'grid':'none';
+  document.getElementById('login-tab').classList.toggle('active',mode==='login');
+  document.getElementById('register-tab').classList.toggle('active',mode==='register');
+  setAuthMessage('');
+}
+function setAuthMessage(message){
+  const element=document.getElementById('auth-error');
+  element.textContent=message;
+  element.style.display=message?'block':'none';
+}
+function setAuthBusy(message){ document.getElementById('auth-status').textContent=message; }
+function roleForUser(role){ return role==='ADMIN'?'admin':role==='MANAGER'?'manager':'student'; }
+async function parseApiResponse(response){
+  const body=await response.json().catch(()=>null);
+  if(response.status===401 || response.status===403){
+    if(state.token){ logout(); }
+    throw new Error(body?.message || 'Your session is invalid or has expired. Please sign in again.');
+  }
+  if(!response.ok){
+    const validation=body?.validationErrors ? Object.values(body.validationErrors).join(' ') : '';
+    throw new Error(validation || body?.message || body?.error || `Backend returned HTTP ${response.status}`);
+  }
+  return body;
+}
+async function apiFetch(path,options={}){
+  const headers=new Headers(options.headers || {});
+  if(state.token) headers.set('Authorization',`Bearer ${state.token}`);
+  return fetch(`${API_BASE}${path}`,{...options,headers});
+}
+async function authenticate(path,payload){
+  setAuthMessage(''); setAuthBusy('Connecting to Spring Boot...');
+  try{
+    const response=await fetch(`${API_BASE}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const user=await parseApiResponse(response);
+    state.user=user; state.token=user.token; state.ragVisaType=user.visaType || 'F-1';
+    sessionStorage.setItem('mygrantToken',user.token);
+    enterApp(roleForUser(user.role));
+  }catch(error){ setAuthMessage(error instanceof TypeError?'Cannot reach Spring Boot on http://localhost:8080. Start the application first.':error.message); }
+  finally{ setAuthBusy(''); }
+}
+function submitLogin(event){
+  event.preventDefault();
+  return authenticate('/api/v1/auth/login',{userEmail:document.getElementById('login-email').value.trim(),userPassword:document.getElementById('login-password').value});
+}
+function submitRegistration(event){
+  event.preventDefault();
+  return authenticate('/api/v1/auth/register',{
+    userName:document.getElementById('register-name').value.trim(),
+    userEmail:document.getElementById('register-email').value.trim(),
+    userPassword:document.getElementById('register-password').value,
+    visaType:document.getElementById('register-visa').value,
+    academicLevel:document.getElementById('register-level').value || null,
+    programEndDate:document.getElementById('register-end-date').value || null
+  });
+}
+async function restoreSession(){
+  if(!state.token) return;
+  setAuthBusy('Restoring your session...');
+  try{
+    const response=await apiFetch('/api/v1/profiles/me');
+    state.user=await parseApiResponse(response);
+    enterApp(roleForUser(state.user.role));
+  }catch(error){ sessionStorage.removeItem('mygrantToken'); state.token=null; setAuthMessage(error.message); }
+  finally{ setAuthBusy(''); }
+}
+async function loadPolicies(){
+  try{
+    const response=await apiFetch('/policies');
+    state.policyRecords=await parseApiResponse(response);
+    state.policyError=null;
+  }catch(error){ state.policyError=error.message; }
+  if(state.view==='dashboard') render();
 }
 function goto(view, param){
   state.view = view;
@@ -460,9 +575,9 @@ function showToast(msg){
 /* ---------------- RENDER ---------------- */
 function render(){
   const main = document.getElementById('main');
-  if(state.view==='dashboard') main.innerHTML = renderDashboard();
+  if(state.view==='dashboard') main.innerHTML = renderLiveDashboard();
   else if(state.view==='alertDetail') main.innerHTML = renderAlertDetail(state.openAlert);
-  else if(state.view==='profile') main.innerHTML = renderProfile();
+  else if(state.view==='profile') main.innerHTML = renderAccountProfile();
   else if(state.view==='manager') main.innerHTML = renderManager();
   else if(state.view==='queue') main.innerHTML = renderQueue();
   else if(state.view==='admin') main.innerHTML = renderAdmin();
@@ -499,6 +614,25 @@ function renderDashboard(){
     </div>
     ${rows}
   `;
+}
+
+function renderLiveDashboard(){
+  const visaType=state.user?.visaType || '';
+  const records=(state.policyRecords || []).filter(policy=>String(policy.visaType || '').includes(visaType));
+  const rows=records.map(policy=>`
+    <div class="entry urgency-low">
+      <div class="flag"></div>
+      <div class="entry-case">${escapeHtml(policy.externalId)}</div>
+      <div class="entry-body">
+        <h3>${escapeHtml(policy.title)}</h3>
+        <p>Published ${escapeHtml(formatDate(policy.publicationDate))}${policy.effectiveDate ? `; effective ${escapeHtml(formatDate(policy.effectiveDate))}` : ''}.</p>
+        <div class="tag-row"><span class="tag">${escapeHtml(policy.status)}</span><span class="tag">${escapeHtml(policy.agency)}</span><span class="tag">${escapeHtml(policy.visaType)}</span></div>
+      </div>
+      <div class="entry-action"><a class="btn ghost small" href="${escapeAttribute(policy.sourceUrl)}" target="_blank" rel="noopener noreferrer">Source</a></div>
+    </div>`).join('');
+  return `<div class="page-head"><h1>Policies for ${escapeHtml(visaType || 'your profile')}</h1><p class="sub">Live policy records loaded from PostgreSQL and filtered to your registered visa category.</p></div>
+    ${state.policyError ? `<div class="rag-error">${escapeHtml(state.policyError)}</div>` : ''}
+    ${state.policyRecords===null ? '<div class="empty">Loading policies...</div>' : rows || '<div class="empty"><div class="big">No matching policies yet</div>Import a Federal Register document from the RAG inspector.</div>'}`;
 }
 
 function renderAlertDetail(id){
@@ -570,6 +704,23 @@ function renderProfile(){
       </div>
     </div>
   `;
+}
+
+function renderAccountProfile(){
+  const user=state.user || {};
+  return `
+    <div class="page-head">
+      <h1>Your profile</h1>
+      <p class="sub">This profile was loaded from PostgreSQL for the signed-in account.</p>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Full name</label><input readonly value="${escapeAttribute(user.userName || '')}"></div>
+      <div class="field"><label>Email</label><input readonly value="${escapeAttribute(user.userEmail || '')}"></div>
+      <div class="field"><label>Visa category</label><input readonly value="${escapeAttribute(user.visaType || 'Not specified')}"></div>
+      <div class="field"><label>Academic level</label><input readonly value="${escapeAttribute(user.academicLevel || 'Not specified')}"></div>
+      <div class="field"><label>Program end date</label><input readonly value="${escapeAttribute(user.programEndDate || 'Not specified')}"></div>
+      <div class="field"><label>Account role</label><input readonly value="${escapeAttribute(user.role || 'APPLICANT')}"></div>
+    </div>`;
 }
 
 function renderManager(){
@@ -830,9 +981,8 @@ async function submitFederalRegisterImport(event){
   Object.assign(state,{frDocNumber:documentNumber,ingestLoading:true,ingestResult:null,ingestError:null});
   render();
   try{
-    const response = await fetch(`/ingestion/federal-register/${encodeURIComponent(documentNumber)}`,{method:'POST'});
-    const body = await response.json().catch(()=>null);
-    if(!response.ok) throw new Error(body?.message || body?.error || `Backend returned HTTP ${response.status}`);
+    const response = await apiFetch(`/ingestion/federal-register/${encodeURIComponent(documentNumber)}`,{method:'POST'});
+    const body = await parseApiResponse(response);
     state.ingestResult = body;
   }catch(error){
     state.ingestError = error instanceof TypeError ? 'Cannot reach Spring Boot. Open this page through http://localhost:8080, not directly as a file.' : error.message;
@@ -849,9 +999,8 @@ async function submitRagQuery(event){
   Object.assign(state,{ragQuestion:question,ragVisaType:visaType,ragLoading:true,ragResult:null,ragError:null});
   render();
   try{
-    const response = await fetch('/rag/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,visaType})});
-    const body = await response.json().catch(()=>null);
-    if(!response.ok) throw new Error(body?.message || body?.error || `Backend returned HTTP ${response.status}`);
+    const response = await apiFetch('/rag/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,visaType})});
+    const body = await parseApiResponse(response);
     state.ragResult = body;
   }catch(error){
     state.ragError = error instanceof TypeError ? 'Cannot reach Spring Boot. Open this page through http://localhost:8080, not directly as a file.' : error.message;
@@ -878,6 +1027,7 @@ function addSource(){
   showToast('Source added.');
   render();
 }
+restoreSession();
 </script>
 </body>
 </html>
