@@ -13,7 +13,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
     Optional<User> findByEmail(String email);
 
-    /** Matches users by role and lower-cased visa type, since registration does not normalize case. */
-    @Query("select u from User u where u.role = :role and lower(u.visaType) in :visaTypes")
+    /**
+     * Matches users by role and visa type. Registration stores the visa type verbatim, so
+     * both sides are upper-cased and trimmed; callers pass values normalized the same way.
+     */
+    @Query("select u from User u where u.role = :role and upper(trim(u.visaType)) in :visaTypes")
     List<User> findByRoleAndVisaTypeIn(@Param("role") UserRole role, @Param("visaTypes") List<String> visaTypes);
 }

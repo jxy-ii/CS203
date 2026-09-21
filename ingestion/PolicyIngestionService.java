@@ -84,7 +84,7 @@ public class PolicyIngestionService {
         policyRepository.save(saved);
 
         eventPublisher.publishEvent(new PolicyIndexedEvent(saved.getId(), saved.getTitle(),
-                Arrays.asList(saved.getVisaType().split(",")), saved.getEffectiveDate()));
+                Arrays.asList(saved.getVisaType().split(",")), saved.getEffectiveDate(), indexedContent));
 
         return new IngestionResponse(saved.getId(), saved.getExternalId(), chunks.size(), indexedAt, false);
     }

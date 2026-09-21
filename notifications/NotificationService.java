@@ -2,6 +2,9 @@ package mygrant.notifications;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,26 +26,50 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final PolicyImpactRules impactRules;
 
-    public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository) {
+    public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
+            PolicyImpactRules impactRules) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.impactRules = impactRules;
     }
 
     /**
-     * Notifies every applicant whose visa type the policy affects. Runs after the
+     * Notifies every applicant whose visa type the policy affects, flagging those who
+     * must review profile information the policy touches. Runs after the
      * ingestion commits, in its own transaction, so a failure here never undoes an import.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onPolicyIndexed(PolicyIndexedEvent event) {
-        List<String> visaTypes = event.visaTypes().stream().map(String::toLowerCase).toList();
+        List<String> visaTypes = event.visaTypes().stream()
+                .map(PolicyImpactRules::normalizeVisaType)
+                .distinct()
+                .toList();
         List<User> affected = userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, visaTypes);
         String message = buildMessage(event);
+        // The rules are visa-specific, so a policy covering several categories affects
+        // different fields per reader. Read the policy text once for all of them.
+        Map<String, Set<ProfileField>> fieldsByVisaType =
+                impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.indexedContent());
 
         notificationRepository.saveAll(affected.stream()
-                .map(user -> new Notification(user.getId(), event.policyId(), message))
+                .map(user -> toNotification(user, event, message, fieldsByVisaType))
                 .toList());
+    }
+
+    private Notification toNotification(User user, PolicyIndexedEvent event, String message,
+            Map<String, Set<ProfileField>> fieldsByVisaType) {
+        Set<ProfileField> policyFields = fieldsByVisaType
+                .getOrDefault(PolicyImpactRules.normalizeVisaType(user.getVisaType()), Set.of());
+        List<ProfileField> toReview = policyFields.stream().filter(field -> field.isFilledIn(user)).toList();
+        if (toReview.isEmpty()) {
+            return new Notification(user.getId(), event.policyId(), message, toReview);
+        }
+        String labels = toReview.stream().map(ProfileField::label).collect(Collectors.joining(", "));
+        return new Notification(user.getId(), event.policyId(),
+                truncate(message + ". Action needed: review your " + labels + "."), toReview);
     }
 
     @Transactional(readOnly = true)
@@ -74,6 +101,10 @@ public class NotificationService {
         if (event.effectiveDate() != null) {
             message += " (effective " + event.effectiveDate() + ")";
         }
+        return truncate(message);
+    }
+
+    private String truncate(String message) {
         return message.length() > 1500 ? message.substring(0, 1497) + "..." : message;
     }
 }
