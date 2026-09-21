@@ -36,6 +36,63 @@ export JWT_SECRET="$(openssl rand -base64 32)"
 ./mvnw spring-boot:run
 ```
 
+### Authentication and JWT
+
+The application uses JWT bearer tokens for authenticated requests. The signing
+secret is read from the `JWT_SECRET` environment variable and must not be
+committed to this repository.
+
+From WSL, set the secret in the same terminal session used to start Spring Boot:
+
+```bash
+export JWT_SECRET="$(openssl rand -base64 32)"
+./mvnw spring-boot:run
+```
+
+To check that the secret is set without printing it:
+
+```bash
+echo "${#JWT_SECRET}"
+```
+
+The value should be approximately 44 characters long. If you open a new WSL
+terminal, set `JWT_SECRET` again before starting the application, or store it in
+your local shell configuration. Never commit the secret or add the real value
+to `application.yaml`.
+
+Register a user:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userName": "Test User",
+    "userEmail": "test@example.com",
+    "userPassword": "Password123",
+    "visaType": "F-1",
+    "academicLevel": "Undergraduate",
+    "programEndDate": "2028-05-31"
+  }'
+```
+
+Log in and store the returned JWT:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userEmail": "test@example.com",
+    "userPassword": "Password123"
+  }' | jq -r '.token')
+```
+
+Use the token to access the authenticated profile endpoint:
+
+```bash
+curl -s http://localhost:8080/api/v1/profiles/me \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 Wait for `Started MyGrantApplication` before testing. Keep this terminal open while
 using the API or browser interface. After code changes, stop Spring with `Ctrl+C`
 and run `./mvnw spring-boot:run` again; a running JVM does not reload Java changes.
@@ -185,6 +242,101 @@ For document `2026-14439`, the title signals `academic student` and `exchange vi
 produce F-1 and J-1 matches, while `affectsH1b` is false. The saved policy stores the
 full source text; only the opening 6,000 characters are searchable in pgvector for this
 demo. RAG retrieves those chunks after classification.
+
+## Test policy change notifications
+
+Importing a policy alerts every applicant whose visa category it affects. An alert is
+additionally flagged **action required** when the policy touches profile information that
+applicant has already filled in — currently the program end date and the academic level.
+That mapping is a deterministic keyword heuristic like the visa classifier, **not** an LLM
+decision, and it is a prompt to review rather than a legal determination.
+
+Two behaviours surprise people:
+
+- Alerts are created **at ingestion time**. An account registered after a document was
+  imported receives nothing for it.
+- Importing the same document twice alerts nobody the second time; the response reports
+  `"alreadyIndexed":true` and no new alert is generated.
+
+### 1. Sign in as an applicant whose profile has dates
+
+Use the account registered under [Authentication and JWT](#authentication-and-jwt) above.
+It is F-1 with both an academic level and a program end date, which is what the
+action-required flag needs: the flag only fires when the field the policy touches is
+already populated. An account registered without those fields still receives the alert,
+but it arrives unflagged.
+
+Registering an email that already exists returns HTTP 400 with `Email already exists`;
+sign in instead.
+
+### 2. Import a document that affects that category
+
+Sign in at `http://localhost:8080/` as that account, open **RAG inspector** under **Live
+tools** in the sidebar, and import one of these Federal Register document numbers:
+
+- `2025-20932` — F-1 and J-1; flags both the academic level and the program end date, so
+  one alert names two fields.
+- `2026-18631` — F-1, J-1 and H-1B; flags the program end date for F-1 and J-1 only. An
+  H-1B account receives the alert with no flag, which shows the per-category scoping.
+- `2020-20845` — F-1 and J-1; flags the program end date.
+
+The unread badge on the **Notifications** link updates as soon as the import succeeds.
+
+### 3. Read the inbox
+
+Click **Notifications** in the sidebar, or read the same data from the terminal:
+
+```bash
+curl -s http://localhost:8080/api/v1/notifications \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Each entry reports whether it needs attention and which profile fields it refers to:
+
+```json
+{
+  "id": 7,
+  "policyId": 5,
+  "message": "New policy affecting F-1: ... Action needed: review your program end date.",
+  "read": false,
+  "actionRequired": true,
+  "affectedFields": ["program end date"]
+}
+```
+
+### 4. Mark an alert as read
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/notifications/7/read \
+  -H "Authorization: Bearer $TOKEN" | jq
+curl -s http://localhost:8080/api/v1/notifications/unread-count \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Read state is stored in PostgreSQL, so it survives a reload. Each account can only read
+or mark its own alerts; another account's notification ID returns HTTP 404.
+
+### If the inbox is empty
+
+This is usually correct behaviour rather than a fault:
+
+- **A fresh clone has an empty inbox.** PostgreSQL runs locally per developer, so alerts
+  exist only for documents imported on your own machine.
+- **The account registered after the import.** Register first, then import.
+- **The document was already imported.** Use a different document number.
+- **The visa category does not match**, or the account is not an applicant. Only
+  `APPLICANT` users are alerted.
+
+To re-run the demo with a document you already imported, delete it and import it again.
+The alerts cascade with the policy; the vector chunks are removed separately because the
+`policy_chunks` table has no foreign key to `policy_documents`:
+
+```bash
+docker exec -i policy-impact-postgres psql -U policy_user -d policy_impact <<'SQL'
+DELETE FROM policy_chunks WHERE metadata->>'externalId' = '2025-20932';
+DELETE FROM policy_documents WHERE external_id = '2025-20932';
+SQL
+```
 
 ## Test RAG from the terminal
 

@@ -13,6 +13,7 @@ import java.util.Arrays;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import mygrant.ingestion.dto.IngestPolicyRequest;
 import mygrant.ingestion.dto.IngestionResponse;
 import mygrant.policies.PolicyDocument;
 import mygrant.policies.PolicyDocumentRepository;
+import mygrant.policies.PolicyIndexedEvent;
 
 /** Stores complete policy records and their searchable, visa-tagged vector chunks. */
 @Service
@@ -27,11 +29,14 @@ public class PolicyIngestionService {
 
     private final PolicyDocumentRepository policyRepository;
     private final VectorStore vectorStore;
+    private final ApplicationEventPublisher eventPublisher;
     private final TokenTextSplitter textSplitter;
 
-    public PolicyIngestionService(PolicyDocumentRepository policyRepository, VectorStore vectorStore) {
+    public PolicyIngestionService(PolicyDocumentRepository policyRepository, VectorStore vectorStore,
+            ApplicationEventPublisher eventPublisher) {
         this.policyRepository = policyRepository;
         this.vectorStore = vectorStore;
+        this.eventPublisher = eventPublisher;
         this.textSplitter = new TokenTextSplitter();
     }
 
@@ -77,6 +82,9 @@ public class PolicyIngestionService {
         Instant indexedAt = Instant.now();
         saved.markIndexed(indexedAt);
         policyRepository.save(saved);
+
+        eventPublisher.publishEvent(new PolicyIndexedEvent(saved.getId(), saved.getTitle(),
+                Arrays.asList(saved.getVisaType().split(",")), saved.getEffectiveDate(), indexedContent));
 
         return new IngestionResponse(saved.getId(), saved.getExternalId(), chunks.size(), indexedAt, false);
     }
