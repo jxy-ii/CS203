@@ -83,6 +83,7 @@
   }
   .nav-link:hover{background:#1E2C48;}
   .nav-link.active{border-left-color:var(--gold);background:#1E2C48;color:#fff;}
+  .nav-badge{margin-left:auto;font-family:var(--mono);font-size:10.5px;background:var(--gold);color:#1B1403;padding:1px 6px;min-width:18px;text-align:center;}
   .sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid #2A3652;}
   .switch-role{background:none;border:1px solid #3A4665;color:#C7C2B4;font-size:12px;padding:8px 10px;width:100%;text-align:left;}
   .switch-role:hover{border-color:#6A7392;color:#fff;}
@@ -103,6 +104,7 @@
   .entry.urgency-high .flag{background:var(--urgent);}
   .entry.urgency-medium .flag{background:var(--caution);}
   .entry.urgency-low .flag{background:var(--calm);}
+  .entry.read{opacity:0.72;}
   .entry-case{font-family:var(--mono);font-size:11px;color:var(--muted);padding:16px 0 16px 16px;writing-mode:horizontal-tb;}
   .entry-body{padding:16px 18px;}
   .entry-body h3{font-family:var(--serif);font-size:16.5px;margin:0 0 6px;font-weight:600;}
@@ -112,6 +114,7 @@
   .tag.confidence-high{color:var(--calm);border-color:var(--calm-bg);background:var(--calm-bg);}
   .tag.confidence-medium{color:var(--caution);border-color:var(--caution-bg);background:var(--caution-bg);}
   .tag.confidence-low{color:var(--urgent);border-color:var(--urgent-bg);background:var(--urgent-bg);}
+  .tag.action{color:var(--urgent);border-color:var(--urgent-bg);background:var(--urgent-bg);}
   .entry-action{display:flex;align-items:center;padding:0 18px;}
   .btn{
     font-size:13px;padding:9px 16px;border:1px solid var(--ink);background:var(--ink);color:#fff;
@@ -308,6 +311,7 @@
     <div id="nav-student" class="nav-group" style="display:none;">
       <div class="nav-label">Case</div>
       <a class="nav-link" data-view="dashboard" onclick="goto('dashboard')">Your alerts</a>
+      <a class="nav-link" data-view="notifications" onclick="goto('notifications')">Notifications<span id="nav-unread" class="nav-badge" style="display:none;">0</span></a>
       <a class="nav-link" data-view="profile" onclick="goto('profile')">Your profile</a>
     </div>
 
@@ -400,7 +404,7 @@ let sources = [
 ];
 
 const API_BASE = location.port === '8080' ? '' : 'http://localhost:8080';
-const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
+const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
 let state = initialState();
 
 /* ---------- RAG pipeline scenarios ----------
@@ -475,6 +479,7 @@ function enterApp(role){
   const first = role==='student' ? 'dashboard' : role==='manager' ? 'manager' : 'admin';
   goto(first);
   loadPolicies();
+  if(role==='student') loadNotifications();
 }
 function logout(){
   sessionStorage.removeItem('mygrantToken');
@@ -558,11 +563,43 @@ async function loadPolicies(){
   }catch(error){ state.policyError=error.message; }
   if(state.view==='dashboard') render();
 }
+/* Loads the inbox and the unread count together; the count comes from the server
+   because the list is paginated and may not hold every unread notification. */
+async function loadNotifications(){
+  try{
+    const [listResponse, countResponse] = await Promise.all([
+      apiFetch('/api/v1/notifications?size=50'),
+      apiFetch('/api/v1/notifications/unread-count')
+    ]);
+    const page = await parseApiResponse(listResponse);
+    const counts = await parseApiResponse(countResponse);
+    state.notifications = page.content || [];
+    state.unreadCount = counts.unread || 0;
+    state.notificationsError = null;
+  }catch(error){ state.notificationsError = error.message; }
+  updateUnreadBadge();
+  if(state.view==='notifications') render();
+}
+async function markNotificationRead(id){
+  try{
+    const response = await apiFetch(`/api/v1/notifications/${id}/read`,{method:'POST'});
+    await parseApiResponse(response);
+  }catch(error){ showToast(error.message); return; }
+  await loadNotifications();
+}
+function updateUnreadBadge(){
+  const badge = document.getElementById('nav-unread');
+  if(!badge) return;
+  badge.textContent = state.unreadCount > 99 ? '99+' : String(state.unreadCount);
+  badge.style.display = state.unreadCount > 0 ? 'inline-block' : 'none';
+}
+
 function goto(view, param){
   state.view = view;
   if(param) state.openAlert = param;
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active', l.dataset.view===view));
   render();
+  if(view==='notifications') loadNotifications();
   window.scrollTo(0,0);
 }
 function showToast(msg){
@@ -576,6 +613,7 @@ function showToast(msg){
 function render(){
   const main = document.getElementById('main');
   if(state.view==='dashboard') main.innerHTML = renderLiveDashboard();
+  else if(state.view==='notifications') main.innerHTML = renderNotifications();
   else if(state.view==='alertDetail') main.innerHTML = renderAlertDetail(state.openAlert);
   else if(state.view==='profile') main.innerHTML = renderAccountProfile();
   else if(state.view==='manager') main.innerHTML = renderManager();
@@ -632,7 +670,40 @@ function renderLiveDashboard(){
     </div>`).join('');
   return `<div class="page-head"><h1>Policies for ${escapeHtml(visaType || 'your profile')}</h1><p class="sub">Live policy records loaded from PostgreSQL and filtered to your registered visa category.</p></div>
     ${state.policyError ? `<div class="rag-error">${escapeHtml(state.policyError)}</div>` : ''}
-    ${state.policyRecords===null ? '<div class="empty">Loading policies...</div>' : rows || '<div class="empty"><div class="big">No matching policies yet</div>Import a Federal Register document from the RAG inspector.</div>'}`;
+    ${state.policyRecords===null
+      ? (state.policyError ? '' : '<div class="empty">Loading policies...</div>')
+      : rows || '<div class="empty"><div class="big">No matching policies yet</div>Import a Federal Register document from the RAG inspector.</div>'}`;
+}
+
+function renderNotifications(){
+  const rows=(state.notifications || []).map(notification=>{
+    const fields=(notification.affectedFields || [])
+      .map(field=>`<span class="tag">${escapeHtml(field)}</span>`).join('');
+    return `
+    <div class="entry ${notification.actionRequired?'urgency-high':'urgency-low'}${notification.read?' read':''}">
+      <div class="flag"></div>
+      <div class="entry-case">${escapeHtml(formatTimestamp(notification.createdAt))}<br>${notification.read?'Read':'Unread'}</div>
+      <div class="entry-body">
+        <h3>${escapeHtml(notification.message)}</h3>
+        <div class="tag-row">
+          ${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}
+          ${fields}
+        </div>
+      </div>
+      <div class="entry-action">
+        ${notification.read?'':`<button class="btn ghost small" onclick="markNotificationRead(${notification.id})">Mark read</button>`}
+      </div>
+    </div>`;
+  }).join('');
+  return `
+    <div class="page-head">
+      <h1>Notifications</h1>
+      <p class="sub">Policy changes matched to your visa category. Flagged items touch information you have already entered in your profile.</p>
+    </div>
+    ${state.notificationsError ? `<div class="rag-error">${escapeHtml(state.notificationsError)}</div>` : ''}
+    ${state.notifications===null
+      ? (state.notificationsError ? '' : '<div class="empty">Loading notifications...</div>')
+      : rows || '<div class="empty"><div class="big">Nothing yet</div>You will be notified here when a policy affecting your visa category is published.</div>'}`;
 }
 
 function renderAlertDetail(id){
@@ -984,6 +1055,9 @@ async function submitFederalRegisterImport(event){
     const response = await apiFetch(`/ingestion/federal-register/${encodeURIComponent(documentNumber)}`,{method:'POST'});
     const body = await parseApiResponse(response);
     state.ingestResult = body;
+    // A new policy may have just alerted this user, so refresh the badge rather than
+    // waiting for them to open the inbox. A repeat import indexes nothing and alerts nobody.
+    if(!body.ingestion?.alreadyIndexed) loadNotifications();
   }catch(error){
     state.ingestError = error instanceof TypeError ? 'Cannot reach Spring Boot. Open this page through http://localhost:8080, not directly as a file.' : error.message;
   }finally{
@@ -1017,6 +1091,13 @@ function formatDate(value){
   if(!value) return 'unknown date';
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+}
+
+function formatTimestamp(value){
+  if(!value) return 'unknown date';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value
+    : date.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 }
 
 function addSource(){
