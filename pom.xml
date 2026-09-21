@@ -131,6 +131,7 @@
                                 <source>${project.basedir}/policies</source>
                                 <source>${project.basedir}/ingestion</source>
                                 <source>${project.basedir}/rag</source>
+                                <source>${project.basedir}/notifications</source>
                             </sources>
                         </configuration>
                     </execution>

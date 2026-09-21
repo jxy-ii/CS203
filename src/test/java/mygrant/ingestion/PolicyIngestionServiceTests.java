@@ -17,11 +17,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import mygrant.ingestion.dto.IngestPolicyRequest;
 import mygrant.policies.PolicyDocument;
 import mygrant.policies.PolicyDocumentRepository;
+import mygrant.policies.PolicyIndexedEvent;
 import mygrant.policies.PolicyStatus;
 import mygrant.policies.SourceType;
 
@@ -35,6 +37,9 @@ class PolicyIngestionServiceTests {
     @Mock
     private VectorStore vectorStore;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @Test
     void indexesANewPolicyDocument() {
         IngestPolicyRequest request = request();
@@ -47,7 +52,7 @@ class PolicyIngestionServiceTests {
             return policy;
         });
 
-        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore);
+        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore, eventPublisher);
         var response = service.ingest(request);
 
         assertThat(response.policyId()).isEqualTo(1L);
@@ -55,6 +60,8 @@ class PolicyIngestionServiceTests {
         assertThat(response.chunksIndexed()).isPositive();
         assertThat(response.alreadyIndexed()).isFalse();
         verify(vectorStore).add(any());
+        verify(eventPublisher).publishEvent(argThat((Object event) -> event instanceof PolicyIndexedEvent indexed
+                && indexed.policyId().equals(1L) && indexed.visaTypes().equals(java.util.List.of("F-1"))));
     }
 
     @Test
@@ -69,12 +76,13 @@ class PolicyIngestionServiceTests {
         existing.markIndexed(Instant.parse("2026-09-15T00:00:00Z"));
         when(repository.findByExternalId(request.externalId())).thenReturn(Optional.of(existing));
 
-        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore);
+        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore, eventPublisher);
         var response = service.ingest(request);
 
         assertThat(response.alreadyIndexed()).isTrue();
         assertThat(response.chunksIndexed()).isZero();
         verify(vectorStore, never()).add(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test
@@ -89,7 +97,7 @@ class PolicyIngestionServiceTests {
             return policy;
         });
 
-        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore);
+        PolicyIngestionService service = new PolicyIngestionService(repository, vectorStore, eventPublisher);
         service.ingest(request, "Selected summary only.");
 
         verify(repository, atLeastOnce()).save(argThat(policy -> policy.getContent().equals(request.content())));

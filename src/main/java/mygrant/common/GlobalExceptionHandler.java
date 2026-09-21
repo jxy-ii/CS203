@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import mygrant.ingestion.PolicyAlreadyExistsException;
+import mygrant.notifications.NotificationNotFoundException;
 import mygrant.policies.PolicyNotFoundException;
 
 @RestControllerAdvice
@@ -23,6 +24,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(PolicyNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(PolicyNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<ApiError> handleNotificationNotFound(NotificationNotFoundException exception) {
         return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
     }
 
