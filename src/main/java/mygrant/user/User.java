@@ -38,6 +38,12 @@ public class User {
     @Column(name = "program_end_date")
     private LocalDate programEndDate;
 
+    @Column(name = "current_location", length = 20)
+    private String currentLocation; // e.g., "US", "ABROAD"
+
+    @Column(name = "upcoming_travel_date")
+    private LocalDate upcomingTravelDate;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -113,6 +119,22 @@ public class User {
 
     public void setProgramEndDate(LocalDate programEndDate) {
         this.programEndDate = programEndDate;
+    }
+
+    public String getCurrentLocation() {
+        return currentLocation;
+    }
+
+    public void setCurrentLocation(String currentLocation) {
+        this.currentLocation = currentLocation;
+    }
+
+    public LocalDate getUpcomingTravelDate() {
+        return upcomingTravelDate;
+    }
+
+    public void setUpcomingTravelDate(LocalDate upcomingTravelDate) {
+        this.upcomingTravelDate = upcomingTravelDate;
     }
 
     public LocalDateTime getCreatedAt() {

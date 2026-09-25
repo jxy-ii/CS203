@@ -294,6 +294,8 @@
         <div class="field"><label for="register-visa">Visa category</label><select id="register-visa" required><option>F-1</option><option>J-1</option><option>H-1B</option></select></div>
         <div class="field"><label for="register-level">Academic level</label><select id="register-level"><option value="">Not specified</option><option>Undergraduate</option><option>Master's</option><option>PhD</option><option>Other</option></select></div>
         <div class="field"><label for="register-end-date">Program end date</label><input id="register-end-date" type="date"></div>
+        <div class="field"><label for="register-location">Current location</label><select id="register-location"><option value="">Not specified</option><option value="US">US</option><option value="ABROAD">Abroad</option></select></div>
+        <div class="field"><label for="register-travel-date">Upcoming travel date</label><input id="register-travel-date" type="date"></div>
         <button class="btn" type="submit">Create account</button>
       </form>
       <div id="auth-error" class="auth-error" style="display:none;"></div>
@@ -542,7 +544,9 @@ function submitRegistration(event){
     userPassword:document.getElementById('register-password').value,
     visaType:document.getElementById('register-visa').value,
     academicLevel:document.getElementById('register-level').value || null,
-    programEndDate:document.getElementById('register-end-date').value || null
+    programEndDate:document.getElementById('register-end-date').value || null,
+    currentLocation:document.getElementById('register-location').value || null,
+    upcomingTravelDate:document.getElementById('register-travel-date').value || null
   });
 }
 async function restoreSession(){
@@ -790,6 +794,8 @@ function renderAccountProfile(){
       <div class="field"><label>Visa category</label><input readonly value="${escapeAttribute(user.visaType || 'Not specified')}"></div>
       <div class="field"><label>Academic level</label><input readonly value="${escapeAttribute(user.academicLevel || 'Not specified')}"></div>
       <div class="field"><label>Program end date</label><input readonly value="${escapeAttribute(user.programEndDate || 'Not specified')}"></div>
+      <div class="field"><label>Current location</label><input readonly value="${escapeAttribute(user.currentLocation==='ABROAD' ? 'Abroad' : (user.currentLocation || 'Not specified'))}"></div>
+      <div class="field"><label>Upcoming travel date</label><input readonly value="${escapeAttribute(user.upcomingTravelDate || 'Not specified')}"></div>
       <div class="field"><label>Account role</label><input readonly value="${escapeAttribute(user.role || 'APPLICANT')}"></div>
     </div>`;
 }
