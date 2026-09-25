@@ -13,6 +13,8 @@ public class LoginResponse {
     private String visaType;
     private String academicLevel;
     private LocalDate programEndDate;
+    private String currentLocation;
+    private LocalDate upcomingTravelDate;
     private String token; // Optional placeholder for JWT authentication
     private UserRole role;
 
@@ -26,6 +28,8 @@ public class LoginResponse {
         this.visaType = user.getVisaType();
         this.academicLevel = user.getAcademicLevel();
         this.programEndDate = user.getProgramEndDate();
+        this.currentLocation = user.getCurrentLocation();
+        this.upcomingTravelDate = user.getUpcomingTravelDate();
         this.role = user.getRole();
     }
 
@@ -82,6 +86,22 @@ public class LoginResponse {
 
     public void setProgramEndDate(LocalDate programEndDate) {
         this.programEndDate = programEndDate;
+    }
+
+    public String getCurrentLocation() {
+        return currentLocation;
+    }
+
+    public void setCurrentLocation(String currentLocation) {
+        this.currentLocation = currentLocation;
+    }
+
+    public LocalDate getUpcomingTravelDate() {
+        return upcomingTravelDate;
+    }
+
+    public void setUpcomingTravelDate(LocalDate upcomingTravelDate) {
+        this.upcomingTravelDate = upcomingTravelDate;
     }
 
     public String getToken() {

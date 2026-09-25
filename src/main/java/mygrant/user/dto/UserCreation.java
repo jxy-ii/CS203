@@ -30,6 +30,10 @@ public class UserCreation {
     private String academicLevel;   // e.g., "PhD", "Undergraduate", "Master's"
     private LocalDate programEndDate; // e.g., "2028-05-31"
 
+    @Size(max = 20, message = "Current location must be at most 20 characters")
+    private String currentLocation;       // e.g., "US", "ABROAD"
+    private LocalDate upcomingTravelDate; // e.g., "2026-12-15"
+
     public UserCreation() {}
 
     public String getUserName() {
@@ -78,5 +82,21 @@ public class UserCreation {
 
     public void setProgramEndDate(LocalDate programEndDate) {
         this.programEndDate = programEndDate;
+    }
+
+    public String getCurrentLocation() {
+        return currentLocation;
+    }
+
+    public void setCurrentLocation(String currentLocation) {
+        this.currentLocation = currentLocation;
+    }
+
+    public LocalDate getUpcomingTravelDate() {
+        return upcomingTravelDate;
+    }
+
+    public void setUpcomingTravelDate(LocalDate upcomingTravelDate) {
+        this.upcomingTravelDate = upcomingTravelDate;
     }
 }

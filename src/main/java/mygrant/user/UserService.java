@@ -41,6 +41,8 @@ public class UserService {
         user.setVisaType(userCreation.getVisaType());
         user.setAcademicLevel(userCreation.getAcademicLevel());
         user.setProgramEndDate(userCreation.getProgramEndDate());
+        user.setCurrentLocation(userCreation.getCurrentLocation());
+        user.setUpcomingTravelDate(userCreation.getUpcomingTravelDate());
         user.setRole(UserRole.APPLICANT);
         user.setPasswordHash(passwordEncoder.encode(userCreation.getUserPassword()));
 
