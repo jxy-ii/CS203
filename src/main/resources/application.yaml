@@ -39,13 +39,6 @@ jwt:
   secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:3600000}
 
-# Impact assessment runs on the policy ingestion request, so it gets a short timeout of its
-# own instead of a global one that would also cut off RAG answers.
-mygrant:
-  impact-assessment:
-    connect-timeout: ${IMPACT_ASSESSMENT_CONNECT_TIMEOUT:2s}
-    read-timeout: ${IMPACT_ASSESSMENT_READ_TIMEOUT:6s}
-
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
