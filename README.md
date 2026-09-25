@@ -251,20 +251,6 @@ applicant has already filled in — currently the program end date and the acade
 That mapping is a deterministic keyword heuristic like the visa classifier, **not** an LLM
 decision, and it is a prompt to review rather than a legal determination.
 
-Each flagged alert is then rated by `llama3.2` for how urgently it affects that applicant,
-using the policy excerpt, the flagged profile fields, and the applicant's current location
-and upcoming travel date. Two F-1 students flagged for the same program end date can get
-different severities because one plans to travel. Unflagged alerts never reach the model.
-The rating adds a severity, a two-sentence explanation and a confidence; it never replaces
-the rule-based message or the action flag, and it is advisory, not legal advice.
-
-The rating runs during the import request, so it has its own 6-second timeout
-(`IMPACT_ASSESSMENT_READ_TIMEOUT`) and no retries. If the model times out, is unreachable,
-or returns anything but valid JSON, the alert is still sent with the rule-based message and
-the three rating fields left null, and a warning is logged. After one timeout or refused
-connection, the remaining applicants for that policy skip the model. Warm the model with
-`ollama run llama3.2 ""` before a demo, or the first import may time out.
-
 Two behaviours surprise people:
 
 - Alerts are created **at ingestion time**. An account registered after a document was
@@ -305,8 +291,7 @@ curl -s http://localhost:8080/api/v1/notifications \
   -H "Authorization: Bearer $TOKEN" | jq
 ```
 
-Each entry reports whether it needs attention, which profile fields it refers to, and the
-model's rating when one was made:
+Each entry reports whether it needs attention and which profile fields it refers to:
 
 ```json
 {
@@ -315,15 +300,9 @@ model's rating when one was made:
   "message": "New policy affecting F-1: ... Action needed: review your program end date.",
   "read": false,
   "actionRequired": true,
-  "affectedFields": ["program end date"],
-  "severity": "WARNING",
-  "impactExplanation": "You may need to review your program end date ...",
-  "confidence": "MEDIUM"
+  "affectedFields": ["program end date"]
 }
 ```
-
-`severity`, `impactExplanation` and `confidence` are `null` for unflagged alerts and
-whenever the model's rating was not used.
 
 ### 4. Mark an alert as read
 

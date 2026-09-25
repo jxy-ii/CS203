@@ -8,14 +8,10 @@ import java.util.stream.Collectors;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-
-import mygrant.common.Confidence;
 
 /** An in-app alert telling one user that a policy may affect their application. */
 @Entity
@@ -51,19 +47,6 @@ public class Notification {
     @Column(name = "affected_fields")
     private String affectedFields;
 
-    // The three impact columns are null when the model's assessment was not used, so a
-    // reader can tell a rule-only alert from one the model rated.
-    @Enumerated(EnumType.STRING)
-    @Column(name = "impact_severity", length = 20)
-    private ImpactSeverity severity;
-
-    @Column(name = "impact_explanation", length = 500)
-    private String impactExplanation;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "impact_confidence", length = 10)
-    private Confidence confidence;
-
     protected Notification() {
     }
 
@@ -83,9 +66,6 @@ public class Notification {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getReadAt() { return readAt; }
     public boolean isActionRequired() { return actionRequired; }
-    public ImpactSeverity getSeverity() { return severity; }
-    public String getImpactExplanation() { return impactExplanation; }
-    public Confidence getConfidence() { return confidence; }
 
     public List<ProfileField> getAffectedFields() {
         if (affectedFields == null || affectedFields.isBlank()) {
@@ -97,13 +77,6 @@ public class Notification {
                 .filter(KNOWN_FIELDS::contains)
                 .map(ProfileField::valueOf)
                 .toList();
-    }
-
-    /** Adds the model's rating alongside the rule-based message, which it never replaces. */
-    public void recordAssessment(ImpactAssessment assessment) {
-        this.severity = assessment.severity();
-        this.impactExplanation = assessment.explanation();
-        this.confidence = assessment.confidence();
     }
 
     public void markRead(Instant readAt) {

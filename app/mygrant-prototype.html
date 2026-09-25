@@ -679,36 +679,18 @@ function renderLiveDashboard(){
       : rows || '<div class="empty"><div class="big">No matching policies yet</div>Import a Federal Register document from the RAG inspector.</div>'}`;
 }
 
-/* The model's rating is optional: when it is missing (the rule-only fallback), the
-   card falls back to the rule's own action flag. */
-const SEVERITY_DISPLAY = {
-  CRITICAL:{label:'Critical', urgency:'urgency-high', tag:'action'},
-  WARNING:{label:'Warning', urgency:'urgency-medium', tag:'confidence-medium'},
-  INFORMATIONAL:{label:'Informational', urgency:'urgency-low', tag:''},
-  NO_IMPACT:{label:'No impact expected', urgency:'urgency-low', tag:''}
-};
-const IMPACT_CONFIDENCE_LABEL = {HIGH:'High confidence', MEDIUM:'Medium confidence', LOW:'Low confidence'};
-
 function renderNotifications(){
   const rows=(state.notifications || []).map(notification=>{
     const fields=(notification.affectedFields || [])
       .map(field=>`<span class="tag">${escapeHtml(field)}</span>`).join('');
-    const severity=SEVERITY_DISPLAY[notification.severity];
-    const urgency=severity ? severity.urgency : (notification.actionRequired?'urgency-high':'urgency-low');
-    const confidence=IMPACT_CONFIDENCE_LABEL[notification.confidence];
-    const assessment=severity ? `
-        <p>${escapeHtml(notification.impactExplanation || '')}</p>` : '';
-    const assessmentTags=severity ? `
-          <span class="tag ${severity.tag}" title="Rated by the AI impact assessment; advisory, not legal advice">${severity.label}</span>
-          ${confidence ? `<span class="tag confidence-${notification.confidence.toLowerCase()}">${confidence}</span>` : ''}` : '';
     return `
-    <div class="entry ${urgency}${notification.read?' read':''}">
+    <div class="entry ${notification.actionRequired?'urgency-high':'urgency-low'}${notification.read?' read':''}">
       <div class="flag"></div>
       <div class="entry-case">${escapeHtml(formatTimestamp(notification.createdAt))}<br>${notification.read?'Read':'Unread'}</div>
       <div class="entry-body">
-        <h3>${escapeHtml(notification.message)}</h3>${assessment}
+        <h3>${escapeHtml(notification.message)}</h3>
         <div class="tag-row">
-          ${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}${assessmentTags}
+          ${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}
           ${fields}
         </div>
       </div>
@@ -720,7 +702,7 @@ function renderNotifications(){
   return `
     <div class="page-head">
       <h1>Notifications</h1>
-      <p class="sub">Policy changes matched to your visa category. Flagged items touch information you have already entered in your profile. Severity and explanations come from an AI assessment of your profile and travel plans; they are advisory, not legal advice.</p>
+      <p class="sub">Policy changes matched to your visa category. Flagged items touch information you have already entered in your profile.</p>
     </div>
     ${state.notificationsError ? `<div class="rag-error">${escapeHtml(state.notificationsError)}</div>` : ''}
     ${state.notifications===null
