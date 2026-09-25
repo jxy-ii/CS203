@@ -3,6 +3,9 @@ package mygrant.notifications;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -10,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -32,8 +36,16 @@ class NotificationServiceTests {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private NotificationStreamRegistry streamRegistry;
+
     @Captor
     private ArgumentCaptor<List<Notification>> saved;
+
+    @BeforeEach
+    void persistSavedRows() {
+        lenient().when(notificationRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     @Test
     void notifiesApplicantsMatchingTheAffectedVisaTypes() {
@@ -46,6 +58,8 @@ class NotificationServiceTests {
                         LocalDate.parse("2026-10-01"), "Sets a fixed period of admission."));
 
         verify(notificationRepository).saveAll(saved.capture());
+        verify(streamRegistry).publish(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.argThat(response -> response.message().contains("Fixed Time Period")));
         assertThat(saved.getValue()).singleElement().satisfies(notification -> {
             assertThat(notification.getUserId()).isEqualTo(7L);
             assertThat(notification.getPolicyId()).isEqualTo(3L);
@@ -53,6 +67,20 @@ class NotificationServiceTests {
                     .contains("F-1, J-1", "Fixed Time Period of Admission", "2026-10-01");
             assertThat(notification.getReadAt()).isNull();
         });
+    }
+
+    @Test
+    void pushFailureDoesNotFailNotificationCreation() {
+        User student = user(7L, "student@example.com");
+        when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("F-1")))
+                .thenReturn(List.of(student));
+        doThrow(new IllegalStateException("closed stream")).when(streamRegistry)
+                .publish(org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.any());
+
+        service().onPolicyIndexed(new PolicyIndexedEvent(3L, "Fee update", List.of("F-1"), null, "Fees change."));
+
+        verify(notificationRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).hasSize(1);
     }
 
     @Test
@@ -66,6 +94,10 @@ class NotificationServiceTests {
                 List.of("F-1"), null, "Ends duration of status."));
 
         verify(notificationRepository).saveAll(saved.capture());
+        verify(streamRegistry).publish(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.argThat(response -> response.actionRequired()
+                        && response.affectedFields().contains("program end date")
+                        && response.message().contains("Action needed: review your program end date")));
         assertThat(saved.getValue()).singleElement().satisfies(notification -> {
             assertThat(notification.isActionRequired()).isTrue();
             assertThat(notification.getAffectedFields()).containsExactly(ProfileField.PROGRAM_END_DATE);
@@ -176,7 +208,7 @@ class NotificationServiceTests {
     }
 
     private NotificationService service() {
-        return new NotificationService(notificationRepository, userRepository, new PolicyImpactRules());
+        return new NotificationService(notificationRepository, userRepository, new PolicyImpactRules(), streamRegistry);
     }
 
     private User user(Long id, String email) {

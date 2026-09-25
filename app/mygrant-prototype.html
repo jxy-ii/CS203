@@ -408,6 +408,8 @@ let sources = [
 const API_BASE = location.port === '8080' ? '' : 'http://localhost:8080';
 const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
 let state = initialState();
+let notificationStreamController = null;
+let permissionPromptedThisSession = false;
 
 /* ---------- RAG pipeline scenarios ----------
    Each one traces a real /rag/query call end to end so you can see, at every
@@ -482,8 +484,11 @@ function enterApp(role){
   goto(first);
   loadPolicies();
   if(role==='student') loadNotifications();
+  if(role==='student') connectNotificationStream();
 }
 function logout(){
+  if(notificationStreamController) notificationStreamController.abort();
+  notificationStreamController = null;
   sessionStorage.removeItem('mygrantToken');
   state = initialState();
   document.getElementById('app').classList.remove('active');
@@ -584,6 +589,67 @@ async function loadNotifications(){
   updateUnreadBadge();
   if(state.view==='notifications') render();
 }
+async function connectNotificationStream(){
+  if(!state.token || state.role!=='student' || !window.fetch || !window.ReadableStream) return;
+  if(notificationStreamController) notificationStreamController.abort();
+  const controller = new AbortController();
+  notificationStreamController = controller;
+  try{
+    const response = await fetch(`${API_BASE}/api/v1/notifications/stream`, {
+      headers:{Authorization:`Bearer ${state.token}`,Accept:'text/event-stream'}, signal:controller.signal
+    });
+    if(!response.ok || !response.body) return;
+    const reader=response.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer='';
+    while(true){
+      const {value,done}=await reader.read();
+      if(done) break;
+      buffer+=decoder.decode(value,{stream:true});
+      let delimiter;
+      while((delimiter=/\r?\n\r?\n/.exec(buffer))){
+        const frame=buffer.slice(0,delimiter.index); buffer=buffer.slice(delimiter.index+delimiter[0].length);
+        const data=frame.split(/\r?\n/).filter(line=>line.startsWith('data:'))
+          .map(line=>line.slice(5).trim()).join('\n');
+        if(data){ try{ receiveNotification(JSON.parse(data)); }catch(error){ console.warn('Invalid notification event',error); } }
+      }
+    }
+  }catch(error){ if(error.name!=='AbortError') console.warn('Notification stream disconnected',error); }
+  finally{
+    if(notificationStreamController===controller){
+      notificationStreamController=null;
+      if(state.token && state.role==='student') setTimeout(connectNotificationStream,3000);
+    }
+  }
+}
+function receiveNotification(notification){
+  state.unreadCount++;
+  state.notifications=[notification,...(state.notifications || []).filter(item=>item.id!==notification.id)];
+  updateUnreadBadge();
+  if(state.view==='notifications') render();
+  if('Notification' in window && Notification.permission==='granted'){
+    const title=notification.actionRequired?'ACTION REQUIRED — myGRANT alert':'New myGRANT policy alert';
+    const browserNotification=new Notification(title,{body:notification.message,tag:`mygrant-${notification.id}`,
+      requireInteraction:!!notification.actionRequired,data:{id:notification.id}});
+    browserNotification.onclick=()=>{
+      window.focus();
+      goto('notificationDetail',notification.id);
+      browserNotification.close();
+    };
+  }
+}
+async function requestBrowserNotifications(){
+  if(permissionPromptedThisSession) return;
+  permissionPromptedThisSession=true;
+  if(!('Notification' in window)){ showToast('Browser notifications are not supported here.'); return; }
+  try{
+    const permission=await Notification.requestPermission();
+    if(permission==='granted') showToast('Browser notifications enabled.');
+    else if(permission==='denied') showToast('Browser notifications are blocked. Inbox alerts remain available.');
+    else showToast('You can enable browser notifications later in your browser settings.');
+    if(state.view==='notifications') render();
+  }catch(error){ showToast('Could not request notification permission.'); }
+}
 async function markNotificationRead(id){
   try{
     const response = await apiFetch(`/api/v1/notifications/${id}/read`,{method:'POST'});
@@ -618,6 +684,7 @@ function render(){
   const main = document.getElementById('main');
   if(state.view==='dashboard') main.innerHTML = renderLiveDashboard();
   else if(state.view==='notifications') main.innerHTML = renderNotifications();
+  else if(state.view==='notificationDetail') main.innerHTML = renderNotificationDetail(state.openAlert);
   else if(state.view==='alertDetail') main.innerHTML = renderAlertDetail(state.openAlert);
   else if(state.view==='profile') main.innerHTML = renderAccountProfile();
   else if(state.view==='manager') main.innerHTML = renderManager();
@@ -688,7 +755,7 @@ function renderNotifications(){
       <div class="flag"></div>
       <div class="entry-case">${escapeHtml(formatTimestamp(notification.createdAt))}<br>${notification.read?'Read':'Unread'}</div>
       <div class="entry-body">
-        <h3>${escapeHtml(notification.message)}</h3>
+        <h3>${notification.actionRequired?'<span class="tag action">ACTION REQUIRED</span> ':''}${escapeHtml(notification.message)}</h3>
         <div class="tag-row">
           ${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}
           ${fields}
@@ -703,11 +770,23 @@ function renderNotifications(){
     <div class="page-head">
       <h1>Notifications</h1>
       <p class="sub">Policy changes matched to your visa category. Flagged items touch information you have already entered in your profile.</p>
+      ${'Notification' in window && Notification.permission==='granted' ? '<span class="tag">Browser notifications enabled</span>' : ('Notification' in window && Notification.permission==='denied' ? '<span class="tag">Browser notifications blocked</span>' : (permissionPromptedThisSession ? '<span class="tag">Permission request sent</span>' : '<button class="btn ghost small" onclick="requestBrowserNotifications()">Enable browser notifications</button>'))}
     </div>
     ${state.notificationsError ? `<div class="rag-error">${escapeHtml(state.notificationsError)}</div>` : ''}
     ${state.notifications===null
       ? (state.notificationsError ? '' : '<div class="empty">Loading notifications...</div>')
       : rows || '<div class="empty"><div class="big">Nothing yet</div>You will be notified here when a policy affecting your visa category is published.</div>'}`;
+}
+
+function renderNotificationDetail(id){
+  const notification=(state.notifications || []).find(item=>item.id===id);
+  if(!notification) return '<button class="back-link" onclick="goto(\'notifications\')">&larr; Back to notifications</button><div class="empty">Loading this alert…</div>';
+  return `<button class="back-link" onclick="goto('notifications')">&larr; Back to notifications</button>
+    <div class="entry ${notification.actionRequired?'urgency-high':'urgency-low'}"><div class="flag"></div>
+      <div class="entry-body"><div class="tag-row">${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}
+      ${(notification.affectedFields||[]).map(field=>`<span class="tag">${escapeHtml(field)}</span>`).join('')}</div>
+      <h2>${notification.actionRequired?'<span class="tag action">ACTION REQUIRED</span> ':''}${escapeHtml(notification.message)}</h2><p>${escapeHtml(formatTimestamp(notification.createdAt))}</p>
+      ${notification.read?'':`<button class="btn ghost small" onclick="markNotificationRead(${notification.id})">Mark read</button>`}</div></div>`;
 }
 
 function renderAlertDetail(id){

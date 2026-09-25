@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import mygrant.notifications.dto.NotificationResponse;
 import mygrant.policies.PolicyIndexedEvent;
@@ -27,12 +29,14 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final PolicyImpactRules impactRules;
+    private final NotificationStreamRegistry streamRegistry;
 
     public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
-            PolicyImpactRules impactRules) {
+            PolicyImpactRules impactRules, NotificationStreamRegistry streamRegistry) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.impactRules = impactRules;
+        this.streamRegistry = streamRegistry;
     }
 
     /**
@@ -54,9 +58,27 @@ public class NotificationService {
         Map<String, Set<ProfileField>> fieldsByVisaType =
                 impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.indexedContent());
 
-        notificationRepository.saveAll(affected.stream()
+        List<Notification> saved = notificationRepository.saveAll(affected.stream()
                 .map(user -> toNotification(user, event, message, fieldsByVisaType))
                 .toList());
+        // Publish only after these rows commit. A disconnected stream cannot undo persistence.
+        Runnable publishSaved = () -> {
+            for (Notification notification : saved) {
+                try {
+                    streamRegistry.publish(notification.getUserId(), NotificationResponse.from(notification));
+                } catch (RuntimeException ignored) {
+                    // A disconnected or unhealthy stream never rolls back alert creation.
+                }
+            }
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            publishSaved.run();
+        } else TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publishSaved.run();
+            }
+        });
     }
 
     private Notification toNotification(User user, PolicyIndexedEvent event, String message,
