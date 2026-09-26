@@ -83,7 +83,9 @@ TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -d '{
     "userEmail": "test@example.com",
     "userPassword": "Password123"
-  }' | jq -r '.token')
+  }' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+  echo $TOKEN
 ```
 
 Use the token to access the authenticated profile endpoint:
@@ -112,10 +114,9 @@ Configuration can be overridden with `DATABASE_URL`, `DATABASE_USERNAME`,
 
 ## Architecture
 
-The existing top-level `policies`, `ingestion`, and `rag` directories contain their
-respective Java feature packages. Maven registers them as additional source directories.
-The Spring Boot entry point and shared application infrastructure remain under
-`src/main/java/mygrant`.
+The Java code follows Maven's standard source layout. Feature packages live under
+`src/main/java/mygrant` alongside the authentication, user, and shared application
+infrastructure packages. Tests mirror the same package layout under `src/test/java/mygrant`.
 
 Spring AI creates the `policy_chunks` vector table on first startup. Schema-name
 validation is intentionally disabled during automatic initialization because validation
