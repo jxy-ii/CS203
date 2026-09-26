@@ -38,7 +38,9 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/mygrant-prototype.html", "/favicon.ico",
-                        "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                        "/api/v1/auth/register", "/api/v1/auth/login",
+                        "/api/v1/auth/workos/login", "/api/v1/auth/workos/callback",
+                        "/api/v1/webhooks/workos").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

@@ -68,6 +68,8 @@
   .auth-form{display:grid;gap:13px;}
   .auth-error{background:var(--urgent-bg);color:var(--urgent);padding:10px 12px;font-size:12.5px;line-height:1.45;margin-top:12px;}
   .auth-status{color:var(--muted);font-size:12px;margin-top:12px;}
+  .google-btn{width:100%;margin-bottom:18px;background:#fff;color:var(--ink);border:1px solid var(--line);}
+  .google-btn:hover{background:#FBFAF7;border-color:var(--ink);}
 
   /* ---------- APP SHELL ---------- */
   #app{display:none;min-height:100vh;grid-template-columns:232px 1fr;}
@@ -278,6 +280,7 @@
     <div class="login-right" id="account-login">
       <h1>Welcome to myGRANT</h1>
       <p class="sub">Sign in to access your policy profile and the live RAG pipeline.</p>
+      <button class="btn google-btn" type="button" onclick="startWorkosLogin()">Continue with Google</button>
       <div class="auth-tabs">
         <button id="login-tab" class="auth-tab active" type="button" onclick="showAuthMode('login')">Sign in</button>
         <button id="register-tab" class="auth-tab" type="button" onclick="showAuthMode('register')">Create account</button>
@@ -406,9 +409,22 @@ let sources = [
 ];
 
 const API_BASE = location.port === '8080' ? '' : 'http://localhost:8080';
+<<<<<<< Updated upstream
 const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, 
 notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, 
 ingestResult:null, ingestError:null, frDocNumber:'2026-14439', documents: null, documentsError:null });
+=======
+function consumeWorkosRedirect(){
+  const params = new URLSearchParams(location.hash.replace(/^#/,'').replace(/^\?/,'') );
+  const token = params.get('workosToken');
+  const error = params.get('workosError');
+  if(token){ sessionStorage.setItem('mygrantToken',token); }
+  if(token || error){ history.replaceState(null,'',location.pathname + location.search); }
+  return error;
+}
+const workosRedirectError = consumeWorkosRedirect();
+const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
+>>>>>>> Stashed changes
 let state = initialState();
 
 /* ---------- RAG pipeline scenarios ----------
@@ -480,10 +496,49 @@ function enterApp(role){
   document.getElementById('nav-admin').style.display = role==='admin' ? 'block':'none';
   document.getElementById('nav-tools').style.display = role!=='admin' ? 'block':'none';
   document.getElementById('role-tag').textContent = role.toUpperCase()+' VIEW';
+  if(state.user && state.user.profileComplete === false){
+    document.querySelectorAll('.nav-group').forEach(element=>element.style.display='none');
+    document.getElementById('main').innerHTML = renderProfileCompletion();
+    return;
+  }
   const first = role==='student' ? 'dashboard' : role==='manager' ? 'manager' : 'admin';
   goto(first);
   loadPolicies();
   if(role==='student') loadNotifications();
+}
+function startWorkosLogin(){
+  window.location.href = `${API_BASE}/api/v1/auth/workos/login`;
+}
+function renderProfileCompletion(){
+  return `<div class="page-head"><h1>Complete your profile</h1><p class="sub">Your Google account is connected. Add your visa details before using myGRANT.</p></div>
+    <form class="form-grid" onsubmit="submitProfileCompletion(event)">
+      <div class="field"><label for="workos-visa">Visa category</label><select id="workos-visa" required><option>F-1</option><option>J-1</option><option>H-1B</option></select></div>
+      <div class="field"><label for="workos-level">Academic level</label><select id="workos-level"><option value="">Not specified</option><option>Undergraduate</option><option>Master's</option><option>PhD</option><option>Other</option></select></div>
+      <div class="field"><label for="workos-end-date">Program end date</label><input id="workos-end-date" type="date"></div>
+      <div class="field"><label for="workos-location">Current location</label><select id="workos-location"><option value="">Not specified</option><option value="US">US</option><option value="ABROAD">Abroad</option></select></div>
+      <div class="field"><label for="workos-travel-date">Upcoming travel date</label><input id="workos-travel-date" type="date"></div>
+      <div class="form-actions"><button class="btn" type="submit">Save profile</button></div>
+      <div id="profile-error" class="auth-error" style="display:none;grid-column:1/-1;"></div>
+    </form>`;
+}
+async function submitProfileCompletion(event){
+  event.preventDefault();
+  const error=document.getElementById('profile-error');
+  error.style.display='none';
+  try{
+    const response=await apiFetch('/api/v1/profiles/me',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      visaType:document.getElementById('workos-visa').value,
+      academicLevel:document.getElementById('workos-level').value || null,
+      programEndDate:document.getElementById('workos-end-date').value || null,
+      currentLocation:document.getElementById('workos-location').value || null,
+      upcomingTravelDate:document.getElementById('workos-travel-date').value || null
+    })});
+    state.user=await parseApiResponse(response);
+    enterApp(roleForUser(state.user.role));
+  }catch(exception){
+    error.textContent=exception.message;
+    error.style.display='block';
+  }
 }
 function logout(){
   sessionStorage.removeItem('mygrantToken');
@@ -1229,6 +1284,7 @@ function addSource(){
   render();
 }
 restoreSession();
+if(workosRedirectError) setAuthMessage(workosRedirectError);
 </script>
 </body>
 </html>

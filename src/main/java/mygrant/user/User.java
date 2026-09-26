@@ -29,6 +29,9 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Column(name = "workos_user_id", unique = true, length = 100)
+    private String workosUserId;
+
     @Column(name = "visa_type", nullable = false, length = 20)
     private String visaType; // e.g., "F-1", "J-1", "H-1B"
 
@@ -50,6 +53,9 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role = UserRole.APPLICANT;
+
+    @Column(name = "profile_complete", nullable = false)
+    private boolean profileComplete = true;
 
     // Default Constructor for JPA
     public User() {}
@@ -95,6 +101,14 @@ public class User {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public String getWorkosUserId() {
+        return workosUserId;
+    }
+
+    public void setWorkosUserId(String workosUserId) {
+        this.workosUserId = workosUserId;
     }
 
     public String getVisaType() {
@@ -151,5 +165,13 @@ public class User {
 
     public void setRole(UserRole role) {
         this.role = role;
+    }
+
+    public boolean isProfileComplete() {
+        return profileComplete;
+    }
+
+    public void setProfileComplete(boolean profileComplete) {
+        this.profileComplete = profileComplete;
     }
 }

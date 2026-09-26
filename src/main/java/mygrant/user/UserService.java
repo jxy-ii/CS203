@@ -12,6 +12,8 @@ import mygrant.common.DuplicateEmailException;
 import mygrant.user.dto.LoginResponse;
 import mygrant.user.dto.UserCreation;
 import mygrant.user.dto.UserLogin;
+import mygrant.user.dto.ProfileCompletion;
+import mygrant.user.dto.WorkOsUser;
 
 @Service
 public class UserService {
@@ -71,11 +73,46 @@ public class UserService {
 
         User user = optionalUser.get();
 
-        if (!passwordEncoder.matches(userLogin.getUserPassword(), user.getPasswordHash())) {
+        if (user.getPasswordHash() == null
+                || !passwordEncoder.matches(userLogin.getUserPassword(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
         String token = jwtService.generateToken(user.getEmail());
         return new LoginResponse(user, token);
+    }
+
+    public LoginResponse loginWorkOsUser(WorkOsUser workOsUser) {
+        String email = workOsUser.email().trim().toLowerCase();
+        User user = userRepository.findByWorkosUserId(workOsUser.id())
+                .orElseGet(() -> userRepository.findByEmail(email).orElse(null));
+
+        if (user == null) {
+            user = new User();
+            user.setFullName((workOsUser.firstName() + " " + workOsUser.lastName()).trim());
+            if (user.getFullName().isBlank()) user.setFullName(email);
+            user.setEmail(email);
+            user.setRole(UserRole.APPLICANT);
+            user.setWorkosUserId(workOsUser.id());
+            user.setProfileComplete(false);
+            user = userRepository.save(user);
+        } else if (user.getWorkosUserId() == null) {
+            user.setWorkosUserId(workOsUser.id());
+            user = userRepository.save(user);
+        }
+
+        return new LoginResponse(user, jwtService.generateToken(user.getEmail()));
+    }
+
+    public LoginResponse completeProfile(String email, ProfileCompletion profile) {
+        User user = userRepository.findByEmail(email.trim().toLowerCase())
+                .orElseThrow(() -> new IllegalStateException("Authenticated user no longer exists"));
+        user.setVisaType(profile.getVisaType().trim());
+        user.setAcademicLevel(profile.getAcademicLevel());
+        user.setProgramEndDate(profile.getProgramEndDate());
+        user.setCurrentLocation(profile.getCurrentLocation());
+        user.setUpcomingTravelDate(profile.getUpcomingTravelDate());
+        user.setProfileComplete(true);
+        return new LoginResponse(userRepository.save(user));
     }
 }
