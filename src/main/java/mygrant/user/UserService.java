@@ -4,9 +4,11 @@ import java.util.Optional;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import mygrant.auth.JwtService;
 import mygrant.common.InvalidCredentialsException;
+import mygrant.common.DuplicateEmailException;
 import mygrant.user.dto.LoginResponse;
 import mygrant.user.dto.UserCreation;
 import mygrant.user.dto.UserLogin;
@@ -32,7 +34,7 @@ public class UserService {
         String userName = userCreation.getUserName().trim();
 
         if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("Email already exists");
+            throw new DuplicateEmailException();
         }
 
         User user = new User();
@@ -46,7 +48,14 @@ public class UserService {
         user.setRole(UserRole.APPLICANT);
         user.setPasswordHash(passwordEncoder.encode(userCreation.getUserPassword()));
 
-        User savedUser = userRepository.save(user);
+        User savedUser;
+        try {
+            // The database unique constraint is still required because two requests
+            // can pass existsByEmail at the same time.
+            savedUser = userRepository.save(user);
+        } catch (DataIntegrityViolationException exception) {
+            throw new DuplicateEmailException();
+        }
         String token = jwtService.generateToken(savedUser.getEmail());
 
         return new LoginResponse(savedUser, token);

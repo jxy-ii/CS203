@@ -1,13 +1,13 @@
 package mygrant.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -17,8 +17,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import mygrant.auth.JwtService;
+import mygrant.common.DuplicateEmailException;
+import mygrant.common.InvalidCredentialsException;
 import mygrant.user.dto.LoginResponse;
 import mygrant.user.dto.UserCreation;
+import mygrant.user.dto.UserLogin;
 
 /** Verifies registration persists the optional travel fields whether or not they are supplied. */
 @ExtendWith(MockitoExtension.class)
@@ -36,16 +39,9 @@ class UserServiceTests {
     @Captor
     private ArgumentCaptor<User> saved;
 
-    @BeforeEach
-    void setUp() {
-        when(userRepository.existsByEmail("student@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("password1")).thenReturn("hash");
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(jwtService.generateToken("student@example.com")).thenReturn("token");
-    }
-
     @Test
     void registersWithoutTravelFields() {
+        stubSuccessfulRegistration();
         LoginResponse response = service().createUser(registration());
 
         verify(userRepository).save(saved.capture());
@@ -60,6 +56,7 @@ class UserServiceTests {
 
     @Test
     void registersWithTravelFieldsPopulated() {
+        stubSuccessfulRegistration();
         UserCreation registration = registration();
         registration.setCurrentLocation("ABROAD");
         registration.setUpcomingTravelDate(LocalDate.parse("2026-12-15"));
@@ -71,6 +68,43 @@ class UserServiceTests {
         assertThat(saved.getValue().getUpcomingTravelDate()).isEqualTo(LocalDate.parse("2026-12-15"));
         assertThat(response.getCurrentLocation()).isEqualTo("ABROAD");
         assertThat(response.getUpcomingTravelDate()).isEqualTo(LocalDate.parse("2026-12-15"));
+    }
+
+    @Test
+    void rejectsAnExistingEmail() {
+        when(userRepository.existsByEmail("student@example.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> service().createUser(registration()))
+                .isInstanceOf(DuplicateEmailException.class)
+                .hasMessage("An account with that email already exists");
+    }
+
+    @Test
+    void rejectsUnknownLoginEmailWithoutRevealingWhichCredentialFailed() {
+        UserLogin login = new UserLogin();
+        login.setUserEmail("unknown@example.com");
+        login.setUserPassword("password1");
+        when(userRepository.findByEmail("unknown@example.com")).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> service().loginUser(login))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid email or password");
+    }
+
+    @Test
+    void rejectsIncorrectPasswordWithTheSameMessageAsUnknownEmail() {
+        UserLogin login = new UserLogin();
+        login.setUserEmail("student@example.com");
+        login.setUserPassword("wrongpass1");
+        User user = new User();
+        user.setEmail("student@example.com");
+        user.setPasswordHash("hash");
+        when(userRepository.findByEmail("student@example.com")).thenReturn(java.util.Optional.of(user));
+        when(passwordEncoder.matches("wrongpass1", "hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> service().loginUser(login))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid email or password");
     }
 
     private UserCreation registration() {
@@ -86,5 +120,12 @@ class UserServiceTests {
 
     private UserService service() {
         return new UserService(userRepository, passwordEncoder, jwtService);
+    }
+
+    private void stubSuccessfulRegistration() {
+        when(userRepository.existsByEmail("student@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("password1")).thenReturn("hash");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtService.generateToken("student@example.com")).thenReturn("token");
     }
 }

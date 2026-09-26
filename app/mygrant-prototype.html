@@ -285,7 +285,7 @@
       <form id="login-form" class="auth-form" onsubmit="submitLogin(event)">
         <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="email" required></div>
         <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
-        <button class="btn" type="submit">Sign in</button>
+        <button class="btn" type="submit" data-label="Sign in">Sign in</button>
       </form>
       <form id="register-form" class="auth-form" onsubmit="submitRegistration(event)" style="display:none;">
         <div class="field"><label for="register-name">Full name</label><input id="register-name" minlength="2" maxlength="100" required></div>
@@ -296,7 +296,7 @@
         <div class="field"><label for="register-end-date">Program end date</label><input id="register-end-date" type="date"></div>
         <div class="field"><label for="register-location">Current location</label><select id="register-location"><option value="">Not specified</option><option value="US">US</option><option value="ABROAD">Abroad</option></select></div>
         <div class="field"><label for="register-travel-date">Upcoming travel date</label><input id="register-travel-date" type="date"></div>
-        <button class="btn" type="submit">Create account</button>
+        <button class="btn" type="submit" data-label="Create account">Create account</button>
       </form>
       <div id="auth-error" class="auth-error" style="display:none;"></div>
       <div id="auth-status" class="auth-status"></div>
@@ -504,7 +504,11 @@ function setAuthMessage(message){
   element.textContent=message;
   element.style.display=message?'block':'none';
 }
-function setAuthBusy(message){ document.getElementById('auth-status').textContent=message; }
+function setAuthBusy(message){
+  document.getElementById('auth-status').textContent=message;
+  document.querySelectorAll('#login-form button[type="submit"],#register-form button[type="submit"]')
+    .forEach(button=>{ button.disabled=Boolean(message); button.textContent=message ? 'Please wait…' : (button.dataset.label || button.textContent); });
+}
 function roleForUser(role){ return role==='ADMIN'?'admin':role==='MANAGER'?'manager':'student'; }
 async function parseApiResponse(response){
   const body=await response.json().catch(()=>null);

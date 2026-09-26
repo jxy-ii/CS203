@@ -267,8 +267,9 @@ action-required flag needs: the flag only fires when the field the policy touche
 already populated. An account registered without those fields still receives the alert,
 but it arrives unflagged.
 
-Registering an email that already exists returns HTTP 400 with `Email already exists`;
-sign in instead.
+Registering an email that already exists returns HTTP 409 with a clear duplicate-email
+message; sign in instead. Invalid JSON or dates return HTTP 400, and invalid login
+credentials return HTTP 401 without revealing whether the email exists.
 
 ### 2. Import a document that affects that category
 
