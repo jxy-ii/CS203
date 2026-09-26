@@ -8,7 +8,8 @@ import mygrant.user.User;
 public enum ProfileField {
     PROGRAM_END_DATE("program end date", user -> user.getProgramEndDate() != null),
     ACADEMIC_LEVEL("academic level",
-            user -> user.getAcademicLevel() != null && !user.getAcademicLevel().isBlank());
+            user -> user.getAcademicLevel() != null && !user.getAcademicLevel().isBlank()),
+    UPCOMING_TRAVEL("upcoming travel date", user -> user.getUpcomingTravelDate() != null);
 
     private final String label;
     private final Predicate<User> isFilledIn;
