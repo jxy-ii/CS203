@@ -406,7 +406,9 @@ let sources = [
 ];
 
 const API_BASE = location.port === '8080' ? '' : 'http://localhost:8080';
-const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
+const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, 
+notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, 
+ingestResult:null, ingestError:null, frDocNumber:'2026-14439', documents: null, documentsError:null });
 let state = initialState();
 
 /* ---------- RAG pipeline scenarios ----------
@@ -516,6 +518,20 @@ async function parseApiResponse(response){
   }
   return body;
 }
+async function loadImmigrationDocuments() {
+  try {
+    const response = await apiFetch('/api/v1/profiles/me/documents');
+    state.documents = await parseApiResponse(response);
+    state.documentsError = null;
+  } catch (error) {
+    state.documents = [];
+    state.documentsError = error.message;
+  }
+
+  if (state.view === 'profile') {
+    render();
+  }
+}
 async function apiFetch(path,options={}){
   const headers=new Headers(options.headers || {});
   if(state.token) headers.set('Authorization',`Bearer ${state.token}`);
@@ -591,6 +607,37 @@ async function markNotificationRead(id){
   }catch(error){ showToast(error.message); return; }
   await loadNotifications();
 }
+async function uploadImmigrationDocument(event) {
+  event.preventDefault();
+
+  const documentType = document.getElementById('document-type').value;
+  const fileInput = document.getElementById('immigration-file');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    showToast('Choose a document first.');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('documentType', documentType);
+  formData.append('file', file);
+
+  try {
+    const response = await apiFetch('/api/v1/profiles/me/documents', {
+      method: 'POST',
+      body: formData
+    });
+
+    const uploadedDocument = await parseApiResponse(response);
+    event.target.reset();
+    await loadImmigrationDocuments();
+    showToast(`Uploaded ${uploadedDocument.fileName}.`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 function updateUnreadBadge(){
   const badge = document.getElementById('nav-unread');
   if(!badge) return;
@@ -599,6 +646,7 @@ function updateUnreadBadge(){
 }
 
 function goto(view, param){
+  if (view === 'profile') loadImmigrationDocuments();
   state.view = view;
   if(param) state.openAlert = param;
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active', l.dataset.view===view));
@@ -782,22 +830,84 @@ function renderProfile(){
 }
 
 function renderAccountProfile(){
-  const user=state.user || {};
+  const user = state.user || {};
+
   return `
     <div class="page-head">
       <h1>Your profile</h1>
-      <p class="sub">This profile was loaded from PostgreSQL for the signed-in account.</p>
+      <p class="sub">Your saved immigration information and supporting documents.</p>
     </div>
+
     <div class="form-grid">
-      <div class="field"><label>Full name</label><input readonly value="${escapeAttribute(user.userName || '')}"></div>
-      <div class="field"><label>Email</label><input readonly value="${escapeAttribute(user.userEmail || '')}"></div>
       <div class="field"><label>Visa category</label><input readonly value="${escapeAttribute(user.visaType || 'Not specified')}"></div>
       <div class="field"><label>Academic level</label><input readonly value="${escapeAttribute(user.academicLevel || 'Not specified')}"></div>
       <div class="field"><label>Program end date</label><input readonly value="${escapeAttribute(user.programEndDate || 'Not specified')}"></div>
-      <div class="field"><label>Current location</label><input readonly value="${escapeAttribute(user.currentLocation==='ABROAD' ? 'Abroad' : (user.currentLocation || 'Not specified'))}"></div>
-      <div class="field"><label>Upcoming travel date</label><input readonly value="${escapeAttribute(user.upcomingTravelDate || 'Not specified')}"></div>
-      <div class="field"><label>Account role</label><input readonly value="${escapeAttribute(user.role || 'APPLICANT')}"></div>
-    </div>`;
+      <div class="field"><label>Current location</label><input readonly value="${escapeAttribute(user.currentLocation || 'Not specified')}"></div>
+    </div>
+
+    <div class="page-head" style="margin-top:36px;">
+      <h2>Immigration documents</h2>
+      <p class="sub">Upload a PDF, JPG, JPEG, or PNG file up to 10 MB.</p>
+    </div>
+
+    <form class="form-grid" onsubmit="uploadImmigrationDocument(event)">
+      <div class="field">
+        <label for="document-type">Document type</label>
+        <select id="document-type" required>
+          <option value="PASSPORT">Passport</option>
+          <option value="VISA_STAMP">Visa stamp</option>
+          <option value="I20">Form I-20</option>
+          <option value="DS2019">Form DS-2019</option>
+          <option value="I94">Form I-94</option>
+          <option value="EAD">Employment Authorization Document</option>
+          <option value="I797">Form I-797</option>
+          <option value="I140">Form I-140</option>
+          <option value="PERM">PERM</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="immigration-file">Choose file</label>
+        <input
+          id="immigration-file"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          required
+        >
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit">Upload document</button>
+      </div>
+    </form>
+
+    <div style="margin-top:30px;">
+  <h3>Uploaded documents</h3>
+
+  ${state.documentsError
+    ? `<div class="rag-error">${escapeHtml(state.documentsError)}</div>`
+    : ''}
+
+  ${state.documents === null
+    ? '<p class="sub">Loading documents...</p>'
+    : state.documents.length === 0
+      ? '<p class="sub">No documents uploaded yet.</p>'
+      : state.documents.map(document => `
+          <div class="entry urgency-low">
+            <div class="flag"></div>
+            <div class="entry-body">
+              <h3>${escapeHtml(document.fileName)}</h3>
+              <div class="tag-row">
+                <span class="tag">${escapeHtml(document.documentType)}</span>
+                <span class="tag">${Math.round(document.sizeBytes / 1024)} KB</span>
+              </div>
+            </div>
+          </div>
+        `).join('')
+  }
+</div>
+  `;
 }
 
 function renderManager(){

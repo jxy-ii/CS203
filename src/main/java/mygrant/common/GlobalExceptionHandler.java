@@ -14,6 +14,7 @@ import mygrant.ingestion.PolicyAlreadyExistsException;
 import mygrant.notifications.NotificationNotFoundException;
 import mygrant.policies.PolicyNotFoundException;
 
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -35,6 +36,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PolicyAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleConflict(PolicyAlreadyExistsException exception) {
         return response(HttpStatus.CONFLICT, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(DocumentValidationException.class)
+    public ResponseEntity<ApiError> handleDocumentValidation(
+            DocumentValidationException exception) {
+        return response(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                exception.getValidationErrors()
+        );
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
