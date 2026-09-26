@@ -31,6 +31,9 @@ class UserServiceTests {
     private UserRepository userRepository;
 
     @Mock
+    private UserProfileRepository userProfileRepository;
+
+    @Mock
     private BCryptPasswordEncoder passwordEncoder;
 
     @Mock
@@ -39,12 +42,21 @@ class UserServiceTests {
     @Captor
     private ArgumentCaptor<User> saved;
 
+    @Captor
+    private ArgumentCaptor<UserProfile> savedProfile;
+
     @Test
     void registersWithoutTravelFields() {
         stubSuccessfulRegistration();
         LoginResponse response = service().createUser(registration());
 
         verify(userRepository).save(saved.capture());
+        verify(userProfileRepository).save(savedProfile.capture());
+
+        assertThat(savedProfile.getValue().getVisaType()).isEqualTo("F-1");
+        assertThat(savedProfile.getValue().getAcademicLevel()).isEqualTo("Master's");
+        assertThat(savedProfile.getValue().getProgramEndDate())
+                .isEqualTo(LocalDate.parse("2028-05-31"));
         assertThat(saved.getValue().getCurrentLocation()).isNull();
         assertThat(saved.getValue().getUpcomingTravelDate()).isNull();
         assertThat(saved.getValue().getVisaType()).isEqualTo("F-1");
@@ -119,13 +131,21 @@ class UserServiceTests {
     }
 
     private UserService service() {
-        return new UserService(userRepository, passwordEncoder, jwtService);
+        return new UserService(
+                userRepository,
+                userProfileRepository,
+                passwordEncoder,
+                jwtService
+        );
     }
 
     private void stubSuccessfulRegistration() {
         when(userRepository.existsByEmail("student@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password1")).thenReturn("hash");
+        when(userProfileRepository.save(any(UserProfile.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(jwtService.generateToken("student@example.com")).thenReturn("token");
+        
     }
 }

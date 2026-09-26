@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.HashMap;
+
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +21,8 @@ import mygrant.policies.PolicyIndexedEvent;
 import mygrant.user.User;
 import mygrant.user.UserRepository;
 import mygrant.user.UserRole;
+import mygrant.user.UserProfile;
+import mygrant.user.UserProfileRepository;
 
 /** Creates policy alerts for matching applicants and serves each user's inbox. */
 @Service
@@ -27,11 +31,16 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final PolicyImpactRules impactRules;
+    private final UserProfileRepository userProfileRepository;
 
-    public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
+    public NotificationService(
+            NotificationRepository notificationRepository,
+            UserRepository userRepository,
+            UserProfileRepository userProfileRepository,
             PolicyImpactRules impactRules) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.userProfileRepository = userProfileRepository;
         this.impactRules = impactRules;
     }
 
@@ -54,22 +63,52 @@ public class NotificationService {
         Map<String, Set<ProfileField>> fieldsByVisaType =
                 impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.indexedContent());
 
+        Map<Long, Integer> profileVersionsByUserId = new HashMap<>();
+
+    userProfileRepository.findAllById(
+            affected.stream().map(User::getId).toList()
+    ).forEach(profile -> profileVersionsByUserId.put(
+            profile.getUserId(),
+            profile.getVersion()
+    ));
+
         notificationRepository.saveAll(affected.stream()
-                .map(user -> toNotification(user, event, message, fieldsByVisaType))
+                .map(user -> toNotification(
+                        user,
+                        profileVersionsByUserId.getOrDefault(user.getId(), 1),
+                        event,
+                        message,
+                        fieldsByVisaType
+                ))
                 .toList());
     }
 
-    private Notification toNotification(User user, PolicyIndexedEvent event, String message,
-            Map<String, Set<ProfileField>> fieldsByVisaType) {
+    private Notification toNotification(
+        User user,
+        int profileVersion,
+        PolicyIndexedEvent event,
+        String message,
+        Map<String, Set<ProfileField>> fieldsByVisaType) {
         Set<ProfileField> policyFields = fieldsByVisaType
                 .getOrDefault(PolicyImpactRules.normalizeVisaType(user.getVisaType()), Set.of());
         List<ProfileField> toReview = policyFields.stream().filter(field -> field.isFilledIn(user)).toList();
         if (toReview.isEmpty()) {
-            return new Notification(user.getId(), event.policyId(), message, toReview);
+                    return new Notification(
+                user.getId(),
+                profileVersion,
+                event.policyId(),
+                message,
+                toReview
+        );  
         }
         String labels = toReview.stream().map(ProfileField::label).collect(Collectors.joining(", "));
-        return new Notification(user.getId(), event.policyId(),
-                truncate(message + ". Action needed: review your " + labels + "."), toReview);
+        return new Notification(
+                user.getId(),
+                profileVersion,
+                event.policyId(),
+                truncate(message + ". Action needed: review your " + labels + "."),
+                toReview
+        );
     }
 
     @Transactional(readOnly = true)

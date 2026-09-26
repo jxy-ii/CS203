@@ -14,23 +14,28 @@ import mygrant.user.dto.UserCreation;
 import mygrant.user.dto.UserLogin;
 import mygrant.user.dto.ProfileCompletion;
 import mygrant.user.dto.WorkOsUser;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
     public UserService(
             UserRepository userRepository,
+            UserProfileRepository userProfileRepository,
             BCryptPasswordEncoder passwordEncoder,
             JwtService jwtService) {
         this.userRepository = userRepository;
+        this.userProfileRepository = userProfileRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
 
+    @Transactional
     public LoginResponse createUser(UserCreation userCreation) {
         String email = userCreation.getUserEmail().trim().toLowerCase();
         String userName = userCreation.getUserName().trim();
@@ -58,8 +63,9 @@ public class UserService {
         } catch (DataIntegrityViolationException exception) {
             throw new DuplicateEmailException();
         }
+        userProfileRepository.save(UserProfile.fromUser(savedUser));
         String token = jwtService.generateToken(savedUser.getEmail());
-
+        
         return new LoginResponse(savedUser, token);
     }
 

@@ -19,8 +19,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import mygrant.policies.PolicyIndexedEvent;
 import mygrant.user.User;
+import mygrant.user.UserProfileRepository;
 import mygrant.user.UserRepository;
 import mygrant.user.UserRole;
+import mygrant.user.UserProfile;
+import mygrant.user.UserProfileRepository;
 
 /** Verifies who is notified about a new policy and that inbox access is scoped to the owner. */
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +34,9 @@ class NotificationServiceTests {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private UserProfileRepository userProfileRepository;
 
     @Captor
     private ArgumentCaptor<List<Notification>> saved;
@@ -163,7 +169,7 @@ class NotificationServiceTests {
 
     @Test
     void markReadSetsReadTimestamp() {
-        Notification notification = new Notification(7L, 3L, "msg", List.of());
+        Notification notification = new Notification(7L, 1, 3L, "msg", List.of());
         when(userRepository.findByEmail("student@example.com"))
                 .thenReturn(Optional.of(user(7L, "student@example.com")));
         when(notificationRepository.findByIdAndUserId(1L, 7L)).thenReturn(Optional.of(notification));
@@ -175,8 +181,44 @@ class NotificationServiceTests {
         assertThat(notification.getReadAt()).isNotNull();
     }
 
+        @Test
+        void savesTheProfileVersionUsedToGenerateTheNotification() {
+        User student = user(7L, "student@example.com");
+
+        UserProfile profile = UserProfile.fromUser(student);
+        profile.setVersion(4);
+
+        when(userRepository.findByRoleAndVisaTypeIn(
+                UserRole.APPLICANT,
+                List.of("F-1")
+        )).thenReturn(List.of(student));
+
+        when(userProfileRepository.findAllById(List.of(7L)))
+                .thenReturn(List.of(profile));
+
+        service().onPolicyIndexed(new PolicyIndexedEvent(
+                3L,
+                "Fee schedule update",
+                List.of("F-1"),
+                null,
+                "Adjusts filing fees."
+        ));
+
+        verify(notificationRepository).saveAll(saved.capture());
+
+        assertThat(saved.getValue())
+                .singleElement()
+                .satisfies(notification ->
+                        assertThat(notification.getProfileVersion()).isEqualTo(4));
+        }
+
     private NotificationService service() {
-        return new NotificationService(notificationRepository, userRepository, new PolicyImpactRules());
+        return new NotificationService(
+                notificationRepository,
+                userRepository,
+                userProfileRepository,
+                new PolicyImpactRules()
+        );
     }
 
     private User user(Long id, String email) {

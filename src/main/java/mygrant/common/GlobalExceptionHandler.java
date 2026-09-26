@@ -54,6 +54,16 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(ProfileValidationException.class)
+    public ResponseEntity<ApiError> handleProfileValidation(
+            ProfileValidationException exception) {
+        return response(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                exception.getValidationErrors()
+        );
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleBadRequest(IllegalArgumentException exception) {
         return response(HttpStatus.BAD_REQUEST, exception.getMessage(), Map.of());

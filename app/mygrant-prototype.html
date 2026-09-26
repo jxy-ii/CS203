@@ -409,22 +409,50 @@ let sources = [
 ];
 
 const API_BASE = location.port === '8080' ? '' : 'http://localhost:8080';
-<<<<<<< Updated upstream
-const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, 
-notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, 
-ingestResult:null, ingestError:null, frDocNumber:'2026-14439', documents: null, documentsError:null });
-=======
 function consumeWorkosRedirect(){
-  const params = new URLSearchParams(location.hash.replace(/^#/,'').replace(/^\?/,'') );
+  const params = new URLSearchParams(
+    location.hash.replace(/^#/,'').replace(/^\?/,'')
+  );
   const token = params.get('workosToken');
   const error = params.get('workosError');
-  if(token){ sessionStorage.setItem('mygrantToken',token); }
-  if(token || error){ history.replaceState(null,'',location.pathname + location.search); }
+
+  if (token) {
+    sessionStorage.setItem('mygrantToken', token);
+  }
+
+  if (token || error) {
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+
   return error;
 }
+
 const workosRedirectError = consumeWorkosRedirect();
-const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
->>>>>>> Stashed changes
+
+const initialState = () => ({
+  role: null,
+  user: null,
+  profile: null,
+  token: sessionStorage.getItem('mygrantToken'),
+  policyRecords: null,
+  policyError: null,
+  notifications: null,
+  notificationsError: null,
+  unreadCount: 0,
+  view: null,
+  openAlert: null,
+  ragLoading: false,
+  ragResult: null,
+  ragError: null,
+  ragQuestion: '',
+  ragVisaType: 'F-1',
+  ingestLoading: false,
+  ingestResult: null,
+  ingestError: null,
+  frDocNumber: '2026-14439',
+  documents: null,
+  documentsError: null
+});
 let state = initialState();
 
 /* ---------- RAG pipeline scenarios ----------
@@ -533,7 +561,16 @@ async function submitProfileCompletion(event){
       currentLocation:document.getElementById('workos-location').value || null,
       upcomingTravelDate:document.getElementById('workos-travel-date').value || null
     })});
-    state.user=await parseApiResponse(response);
+    state.profile = await parseApiResponse(response);
+
+    state.user.profileComplete = true;
+    state.user.visaType = state.profile.visaType;
+    state.user.academicLevel = state.profile.academicLevel;
+    state.user.programEndDate = state.profile.programEndDate;
+    state.user.currentLocation = state.profile.currentLocation;
+    state.user.upcomingTravelDate = state.profile.upcomingTravelDate;
+    state.ragVisaType = state.profile.visaType || 'F-1';
+
     enterApp(roleForUser(state.user.role));
   }catch(exception){
     error.textContent=exception.message;
@@ -626,13 +663,47 @@ function submitRegistration(event){
 }
 async function restoreSession(){
   if(!state.token) return;
+
   setAuthBusy('Restoring your session...');
+
   try{
-    const response=await apiFetch('/api/v1/profiles/me');
-    state.user=await parseApiResponse(response);
+    const userResponse = await apiFetch('/api/v1/users/me');
+    state.user = await parseApiResponse(userResponse);
+
+    if(state.user.profileComplete){
+      const profileResponse = await apiFetch('/api/v1/profiles/me');
+      state.profile = await parseApiResponse(profileResponse);
+
+      // Existing policy and RAG UI still read this value from state.user.
+      state.user.visaType = state.profile.visaType;
+      state.ragVisaType = state.profile.visaType || 'F-1';
+    }
+
     enterApp(roleForUser(state.user.role));
-  }catch(error){ sessionStorage.removeItem('mygrantToken'); state.token=null; setAuthMessage(error.message); }
-  finally{ setAuthBusy(''); }
+  }catch(error){
+    sessionStorage.removeItem('mygrantToken');
+    state.token = null;
+    setAuthMessage(error.message);
+  }finally{
+    setAuthBusy('');
+  }
+}
+async function loadProfile(){
+  if(!state.user?.profileComplete) return;
+
+  try{
+    const response = await apiFetch('/api/v1/profiles/me');
+    state.profile = await parseApiResponse(response);
+
+    state.user.visaType = state.profile.visaType;
+    state.ragVisaType = state.profile.visaType || 'F-1';
+
+    if(state.view === 'profile'){
+      render();
+    }
+  }catch(error){
+    showToast(error.message);
+  }
 }
 async function loadPolicies(){
   try{
@@ -705,7 +776,10 @@ function updateUnreadBadge(){
 }
 
 function goto(view, param){
-  if (view === 'profile') loadImmigrationDocuments();
+  if (view === 'profile') {
+    loadProfile();
+    loadImmigrationDocuments();
+  }
   state.view = view;
   if(param) state.openAlert = param;
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active', l.dataset.view===view));
@@ -888,6 +962,121 @@ function renderProfile(){
   `;
 }
 
+function renderProfileForm(){
+  const profile = state.profile;
+
+  if(!profile){
+    return '<p class="sub">Loading your profile…</p>';
+  }
+
+  return `
+    <form class="form-grid" onsubmit="saveProfile(event)">
+      <div class="field">
+        <label for="profile-visa-type">Visa category</label>
+        <select id="profile-visa-type" required>
+          <option value="F-1" ${profile.visaType === 'F-1' ? 'selected' : ''}>F-1</option>
+          <option value="J-1" ${profile.visaType === 'J-1' ? 'selected' : ''}>J-1</option>
+          <option value="H-1B" ${profile.visaType === 'H-1B' ? 'selected' : ''}>H-1B</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="profile-origin">Country of origin</label>
+        <input id="profile-origin" value="${escapeAttribute(profile.countryOfOrigin || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-citizenship">Country of citizenship</label>
+        <input id="profile-citizenship" value="${escapeAttribute(profile.countryOfCitizenship || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-location">Current location</label>
+        <select id="profile-location">
+          <option value="">Not specified</option>
+          <option value="US" ${profile.currentLocation === 'US' ? 'selected' : ''}>US</option>
+          <option value="ABROAD" ${profile.currentLocation === 'ABROAD' ? 'selected' : ''}>Abroad</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="profile-employment-status">Employment status</label>
+        <input id="profile-employment-status" value="${escapeAttribute(profile.employmentStatus || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-employer">Employer</label>
+        <input id="profile-employer" value="${escapeAttribute(profile.employer || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-visa-start">Visa start date</label>
+        <input id="profile-visa-start" type="date" value="${escapeAttribute(profile.visaStartDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-visa-expiry">Visa expiry date</label>
+        <input id="profile-visa-expiry" type="date" value="${escapeAttribute(profile.visaExpiryDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-opt-start">OPT start date</label>
+        <input id="profile-opt-start" type="date" value="${escapeAttribute(profile.optStartDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-i140-date">I-140 filing date</label>
+        <input id="profile-i140-date" type="date" value="${escapeAttribute(profile.i140FilingDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-priority-date">Priority date</label>
+        <input id="profile-priority-date" type="date" value="${escapeAttribute(profile.priorityDate || '')}">
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit">Save profile</button>
+      </div>
+    </form>
+  `;
+}
+
+async function saveProfile(event){
+  event.preventDefault();
+
+  const value = id => document.getElementById(id).value.trim();
+  const payload = {
+    visaType: value('profile-visa-type'),
+    countryOfOrigin: value('profile-origin') || null,
+    countryOfCitizenship: value('profile-citizenship') || null,
+    currentLocation: value('profile-location') || null,
+    employmentStatus: value('profile-employment-status') || null,
+    employer: value('profile-employer') || null,
+    visaStartDate: value('profile-visa-start') || null,
+    visaExpiryDate: value('profile-visa-expiry') || null,
+    optStartDate: value('profile-opt-start') || null,
+    i140FilingDate: value('profile-i140-date') || null,
+    priorityDate: value('profile-priority-date') || null
+  };
+
+  try{
+    const response = await apiFetch('/api/v1/profiles/me', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    state.profile = await parseApiResponse(response);
+    state.user.visaType = state.profile.visaType;
+    state.ragVisaType = state.profile.visaType || 'F-1';
+
+    showToast(`Profile saved (version ${state.profile.version}).`);
+    render();
+  }catch(error){
+    showToast(error.message);
+  }
+}
+
 function renderAccountProfile(){
   const user = state.user || {};
 
@@ -897,12 +1086,7 @@ function renderAccountProfile(){
       <p class="sub">Your saved immigration information and supporting documents.</p>
     </div>
 
-    <div class="form-grid">
-      <div class="field"><label>Visa category</label><input readonly value="${escapeAttribute(user.visaType || 'Not specified')}"></div>
-      <div class="field"><label>Academic level</label><input readonly value="${escapeAttribute(user.academicLevel || 'Not specified')}"></div>
-      <div class="field"><label>Program end date</label><input readonly value="${escapeAttribute(user.programEndDate || 'Not specified')}"></div>
-      <div class="field"><label>Current location</label><input readonly value="${escapeAttribute(user.currentLocation || 'Not specified')}"></div>
-    </div>
+    ${renderProfileForm()}
 
     <div class="page-head" style="margin-top:36px;">
       <h2>Immigration documents</h2>
