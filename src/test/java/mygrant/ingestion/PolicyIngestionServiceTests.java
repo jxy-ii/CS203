@@ -103,6 +103,9 @@ class PolicyIngestionServiceTests {
         verify(repository, atLeastOnce()).save(argThat(policy -> policy.getContent().equals(request.content())));
         verify(vectorStore).add(argThat(chunks -> chunks.stream()
                 .allMatch(chunk -> chunk.getText().contains("Selected summary only."))));
+        // Impact rules read the whole policy, not just the excerpt kept for retrieval.
+        verify(eventPublisher).publishEvent(argThat((Object event) -> event instanceof PolicyIndexedEvent indexed
+                && indexed.content().equals(request.content())));
     }
 
     private IngestPolicyRequest request() {
