@@ -24,6 +24,12 @@ public class PolicyImpactRules {
     // before matching, otherwise multi-word signals never match a downloaded rule.
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
+    // Paperwork Reduction Act notices revise the forms schools and agencies file, not what
+    // an applicant must do, so they still reach readers but never ask them to act. Matched
+    // on the title: the API's document type is not stored, and "Notice" is too broad since
+    // some notices, such as a STEM degree list update, do change what a student can do.
+    private static final String INFORMATION_COLLECTION_PREFIX = "agency information collection activities";
+
     // How far either side of a signal a context word may sit, in characters of the
     // collapsed text. About a sentence or two: near enough that the word describes the same
     // provision, far enough to reach a subject named earlier in the sentence.
@@ -39,6 +45,13 @@ public class PolicyImpactRules {
     private static final List<String> WORKER_CONTEXT = List.of(
             "h-1b", "employment", "employer", "employers", "worker", "workers", "cessation",
             "petitioner", "specialty occupation");
+
+    // Words that place a signal in a provision about a person crossing the border. Exact
+    // forms only: FR Doc 2024-12396 describes CBP's exit system with "departing" and "ports
+    // of entry", and those passages are about the agency, not the traveller.
+    private static final List<String> TRAVELLER_CONTEXT = List.of(
+            "depart", "departure", "re-entry", "reentry", "port of entry", "inspection",
+            "admission at");
 
     // Rules are scoped by visa type because one policy can be classified into several
     // categories. Without the scope, an H-1B reader would be told to review a field
@@ -60,23 +73,26 @@ public class PolicyImpactRules {
                     "practical training", "stem opt"),
             Rule.of(ProfileField.ACADEMIC_LEVEL, Set.of("F-1", "J-1"),
                     "educational level", "academic level", "degree level", "change of program"),
-            // H-1B fee and entry rules act at the border and the consulate, so a worker
-            // with a trip booked is the one who has to check how they will re-enter.
-            Rule.of(ProfileField.UPCOMING_TRAVEL, Set.of("H-1B"),
-                    "entry-exit", "biometric entry and exit", "arrival and departure",
-                    "travel documents", "travel to the united states"),
-            // An H-1B worker's status depends on the sponsoring job, so a rule about losing or
-            // changing that job is one the worker has to check against their employer.
+            // An entry or exit rule that acts at the border changes what a worker with a trip
+            // booked must do to leave and re-enter. Fee rules name the same programs without
+            // touching the traveller (FR Docs 2024-12396 and 2026-17324 are paid by employers),
+            // so the signal counts only where the text is about the person crossing.
+            Rule.near(ProfileField.UPCOMING_TRAVEL, Set.of("H-1B"), TRAVELLER_CONTEXT,
+                    "entry-exit", "biometric entry and exit"),
+            // An H-1B worker's status depends on the sponsoring job, so a rule about losing
+            // that job is one the worker has to check against their employer. Changing
+            // employers is deliberately absent: FR Doc 2024-12396 exempts petitions "that do
+            // not involve a change of employer", so the phrase matches its own negation.
             Rule.of(ProfileField.EMPLOYMENT, Set.of("H-1B"),
-                    "cessation of employment", "loss of employment", "termination of employment",
-                    "change of employer", "change employers", "h-1b portability"),
+                    "cessation of employment", "loss of employment", "termination of employment"),
             // The worker counterpart of the student grace period rule above.
             Rule.near(ProfileField.EMPLOYMENT, Set.of("H-1B"), WORKER_CONTEXT,
                     "grace period"));
 
     /**
      * Returns the affected fields for each visa type the policy was classified into,
-     * reading the policy text once for all of them.
+     * reading the policy text once for all of them. An information collection notice
+     * affects no fields.
      *
      * @param visaTypes the visa categories the policy was classified into
      * @param title published policy title
@@ -92,7 +108,13 @@ public class PolicyImpactRules {
                 .map(PolicyImpactRules::normalizeVisaType)
                 .distinct()
                 .collect(Collectors.toMap(visaType -> visaType,
-                        visaType -> matchingFields(visaType, searchable)));
+                        visaType -> isInformationCollection(title)
+                                ? Set.<ProfileField>of()
+                                : matchingFields(visaType, searchable)));
+    }
+
+    private static boolean isInformationCollection(String title) {
+        return title != null && title.strip().toLowerCase(Locale.ROOT).startsWith(INFORMATION_COLLECTION_PREFIX);
     }
 
     /** Compares visa types written with stray case or spacing as equal, such as {@code " f-1 "}. */

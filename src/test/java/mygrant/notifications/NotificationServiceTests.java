@@ -121,9 +121,10 @@ class NotificationServiceTests {
         when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("H-1B")))
                 .thenReturn(List.of(worker));
 
+        // Made-up wording: a rule that changes what a worker must do when crossing the border.
         service().onPolicyIndexed(new PolicyIndexedEvent(3L,
-                "9-11 Response and Biometric Entry-Exit Fee for H-1B and L-1 Visas",
-                List.of("H-1B"), null, "Funds biometric entry and exit programs."));
+                "Biometric Entry-Exit Collection for H-1B Workers",
+                List.of("H-1B"), null, "Workers provide biometrics at the port of entry on each departure."));
 
         verify(notificationRepository).saveAll(saved.capture());
         assertThat(saved.getValue()).singleElement().satisfies(notification -> {

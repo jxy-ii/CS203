@@ -271,7 +271,8 @@ demo. RAG retrieves those chunks after classification.
 
 Importing a policy alerts every applicant whose visa category it affects. An alert is
 additionally flagged **action required** when the policy touches profile information that
-applicant has already filled in — currently the program end date and the academic level.
+applicant has already filled in — currently the program end date, the academic level, the
+upcoming travel date, and the employer or employment status.
 That mapping is a deterministic keyword heuristic like the visa classifier, **not** an LLM
 decision, and it is a prompt to review rather than a legal determination.
 
@@ -299,11 +300,14 @@ credentials return HTTP 401 without revealing whether the email exists.
 Sign in at `http://localhost:8080/` as that account, open **RAG inspector** under **Live
 tools** in the sidebar, and import one of these Federal Register document numbers:
 
-- `2025-20932` — F-1 and J-1; flags both the academic level and the program end date, so
+- `2025-16554` — F-1 and J-1; flags both the academic level and the program end date, so
   one alert names two fields.
-- `2026-18631` — F-1, J-1 and H-1B; flags the program end date for F-1 and J-1 only. An
-  H-1B account receives the alert with no flag, which shows the per-category scoping.
-- `2020-20845` — F-1 and J-1; flags the program end date.
+- `2026-18631` — H-1B only; flags the employer and employment status for an H-1B account
+  that has either saved under **Your profile**. F-1 and J-1 accounts receive nothing: the
+  title names no visa type, and F-1/J-1 appear only in a footnote comparison.
+- `2020-20845` — F-1 and J-1; also flags both fields.
+- `2025-20932` — F-1 and J-1; an information collection notice about school forms, so the
+  alert arrives with no flag.
 
 The unread badge on the **Notifications** link updates as soon as the import succeeds.
 
@@ -358,8 +362,8 @@ The alerts cascade with the policy; the vector chunks are removed separately bec
 
 ```bash
 docker exec -i policy-impact-postgres psql -U policy_user -d policy_impact <<'SQL'
-DELETE FROM policy_chunks WHERE metadata->>'externalId' = '2025-20932';
-DELETE FROM policy_documents WHERE external_id = '2025-20932';
+DELETE FROM policy_chunks WHERE metadata->>'externalId' = '2025-16554';
+DELETE FROM policy_documents WHERE external_id = '2025-16554';
 SQL
 ```
 
