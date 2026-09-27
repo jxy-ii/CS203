@@ -43,6 +43,10 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers("/", "/mygrant-prototype.html", "/favicon.ico",
                         "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                // API docs and the health probe are public; the endpoints they describe
+                // still require a JWT, which Swagger UI sends via its Authorize button.
+                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
+                        "/actuator/health").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
