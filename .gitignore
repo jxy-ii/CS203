@@ -6,3 +6,4 @@ target/
 .env
 data/
 !.gitkeep
+node_modules/

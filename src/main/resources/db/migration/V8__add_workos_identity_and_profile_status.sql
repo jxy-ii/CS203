@@ -1,0 +1,5 @@
+ALTER TABLE users
+    ALTER COLUMN password_hash DROP NOT NULL,
+    ALTER COLUMN visa_type DROP NOT NULL,
+    ADD COLUMN workos_user_id VARCHAR(100) UNIQUE,
+    ADD COLUMN profile_complete BOOLEAN NOT NULL DEFAULT TRUE;

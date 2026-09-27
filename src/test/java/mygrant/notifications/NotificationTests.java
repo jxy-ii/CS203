@@ -12,7 +12,7 @@ class NotificationTests {
 
     @Test
     void reportsNoFieldsWhenNoneWereRecorded() {
-        Notification notification = new Notification(7L, 3L, "msg", List.of());
+        Notification notification = new Notification(7L, 1, 3L, "msg", List.of());
 
         assertThat(notification.isActionRequired()).isFalse();
         assertThat(notification.getAffectedFields()).isEmpty();
@@ -20,7 +20,7 @@ class NotificationTests {
 
     @Test
     void skipsStoredFieldNamesThatNoLongerExist() {
-        Notification notification = new Notification(7L, 3L, "msg",
+        Notification notification = new Notification(7L, 1, 3L, "msg",
                 List.of(ProfileField.PROGRAM_END_DATE));
         // A row written before a later release renamed or removed a field.
         ReflectionTestUtils.setField(notification, "affectedFields", "PROGRAM_END_DATE,VISA_EXPIRY");
