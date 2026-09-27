@@ -68,7 +68,9 @@
   .auth-form{display:grid;gap:13px;}
   .auth-error{background:var(--urgent-bg);color:var(--urgent);padding:10px 12px;font-size:12.5px;line-height:1.45;margin-top:12px;}
   .auth-status{color:var(--muted);font-size:12px;margin-top:12px;}
-  .google-btn{width:100%;margin-bottom:18px;background:#fff;color:var(--ink);border:1px solid var(--line);}
+  .auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--muted);font-size:12px;}
+  .auth-divider::before,.auth-divider::after{content:"";height:1px;background:var(--line);flex:1;}
+  .google-btn{width:100%;background:#fff;color:var(--ink);border:1px solid var(--line);}
   .google-btn:hover{background:#FBFAF7;border-color:var(--ink);}
 
   /* ---------- APP SHELL ---------- */
@@ -228,7 +230,7 @@
   .rag-import-form input{font-family:var(--sans);font-size:14px;padding:10px 12px;border:1px solid var(--line);background:#FCFBF8;width:100%;}
   .rag-import-form .btn:disabled{opacity:.55;cursor:wait;}
   .ingest-result{border-left:3px solid var(--calm);background:var(--calm-bg);padding:12px 14px;font-size:13px;line-height:1.55;}
-  .proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px;}
+  .proof-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:22px;}
   .proof-card{background:var(--panel);border:1px solid var(--line);padding:14px 16px;min-height:112px;}
   .proof-kicker{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-bottom:10px;}
   .proof-card h3{font-family:var(--serif);font-size:15.5px;margin:0 0 6px;}
@@ -291,7 +293,6 @@
     <div class="login-right" id="account-login">
       <h1>Welcome to myGRANT</h1>
       <p class="sub">Sign in to access your policy profile and the live RAG pipeline.</p>
-      <button class="btn google-btn" type="button" onclick="startWorkosLogin()">Continue with Google</button>
       <div class="auth-tabs">
         <button id="login-tab" class="auth-tab active" type="button" onclick="showAuthMode('login')">Sign in</button>
         <button id="register-tab" class="auth-tab" type="button" onclick="showAuthMode('register')">Create account</button>
@@ -312,6 +313,8 @@
         <div class="field"><label for="register-travel-date">Upcoming travel date</label><input id="register-travel-date" type="date"></div>
         <button class="btn" type="submit" data-label="Create account">Create account</button>
       </form>
+      <div class="auth-divider" role="separator"><span>or</span></div>
+      <button class="btn google-btn" type="button" onclick="startWorkosLogin()">Continue with Google</button>
       <div id="auth-error" class="auth-error" style="display:none;"></div>
       <div id="auth-status" class="auth-status"></div>
     </div>
@@ -371,6 +374,13 @@
 </div>
 
 <script>
+/* Shared by profile completion and editing. Native datalists allow both selection
+   and type-ahead filtering without requiring a third-party UI dependency. */
+const COUNTRIES = `Afghanistan|Albania|Algeria|Andorra|Angola|Antigua and Barbuda|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia and Herzegovina|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cabo Verde|Cambodia|Cameroon|Canada|Central African Republic|Chad|Chile|China|Colombia|Comoros|Costa Rica|Croatia|Cuba|Cyprus|Czechia|Democratic Republic of the Congo|Denmark|Djibouti|Dominica|Dominican Republic|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Eswatini|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guinea-Bissau|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kosovo|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|North Macedonia|Norway|Oman|Pakistan|Palau|Palestine|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Republic of the Congo|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent and the Grenadines|Samoa|San Marino|Sao Tome and Principe|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Timor-Leste|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|United Kingdom|United States|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe`.split('|');
+function countryOptions(){
+  return COUNTRIES.map(country=>`<option value="${escapeAttribute(country)}"></option>`).join('');
+}
+
 /* ---------------- MOCK DATA ---------------- */
 const policies = {
   p1:{title:'Fixed time period replaces Duration of Status for F-1/J-1', agency:'DHS · Federal Register', status:'Final rule', citation:'8 CFR §214.1 · 90 Fed. Reg. 41221 · effective Sept 15, 2026'},
@@ -465,6 +475,7 @@ const initialState = () => ({
   documentsError: null
 });
 let state = initialState();
+let notificationStreamController = null;
 let permissionPromptedThisSession = false;
 
 /* ---------- RAG pipeline scenarios ----------
@@ -543,7 +554,9 @@ function enterApp(role){
   }
   const first = role==='student' ? 'dashboard' : role==='manager' ? 'manager' : 'admin';
   goto(first);
-  if(role==='student') openNotificationStream();
+  loadPolicies();
+  if(role==='student') loadNotifications();
+  if(role==='student') connectNotificationStream();
 }
 function startWorkosLogin(){
   window.location.href = `${API_BASE}/api/v1/auth/workos/login`;
@@ -552,10 +565,13 @@ function renderProfileCompletion(){
   return `<div class="page-head"><h1>Complete your profile</h1><p class="sub">Your Google account is connected. Add your visa details before using myGRANT.</p></div>
     <form class="form-grid" onsubmit="submitProfileCompletion(event)">
       <div class="field"><label for="workos-visa">Visa category</label><select id="workos-visa" required><option>F-1</option><option>J-1</option><option>H-1B</option></select></div>
+      <div class="field"><label for="workos-origin">Country of origin</label><input id="workos-origin" list="workos-country-options" autocomplete="country-name" placeholder="Start typing a country"></div>
+      <div class="field"><label for="workos-citizenship">Country of citizenship</label><input id="workos-citizenship" list="workos-country-options" autocomplete="country-name" placeholder="Start typing a country"></div>
       <div class="field"><label for="workos-level">Academic level</label><select id="workos-level"><option value="">Not specified</option><option>Undergraduate</option><option>Master's</option><option>PhD</option><option>Other</option></select></div>
       <div class="field"><label for="workos-end-date">Program end date</label><input id="workos-end-date" type="date"></div>
       <div class="field"><label for="workos-location">Current location</label><select id="workos-location"><option value="">Not specified</option><option value="US">US</option><option value="ABROAD">Abroad</option></select></div>
       <div class="field"><label for="workos-travel-date">Upcoming travel date</label><input id="workos-travel-date" type="date"></div>
+      <datalist id="workos-country-options">${countryOptions()}</datalist>
       <div class="form-actions"><button class="btn" type="submit">Save profile</button></div>
       <div id="profile-error" class="auth-error" style="display:none;grid-column:1/-1;"></div>
     </form>`;
@@ -567,6 +583,8 @@ async function submitProfileCompletion(event){
   try{
     const response=await apiFetch('/api/v1/profiles/me',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       visaType:document.getElementById('workos-visa').value,
+      countryOfOrigin:document.getElementById('workos-origin').value.trim() || null,
+      countryOfCitizenship:document.getElementById('workos-citizenship').value.trim() || null,
       academicLevel:document.getElementById('workos-level').value || null,
       programEndDate:document.getElementById('workos-end-date').value || null,
       currentLocation:document.getElementById('workos-location').value || null,
@@ -589,7 +607,8 @@ async function submitProfileCompletion(event){
   }
 }
 function logout(){
-  closeNotificationStream();
+  if(notificationStreamController) notificationStreamController.abort();
+  notificationStreamController = null;
   document.getElementById('popup-stack').innerHTML='';
   sessionStorage.removeItem('mygrantToken');
   state = initialState();
@@ -743,12 +762,54 @@ async function loadNotifications(){
   updateUnreadBadge();
   if(state.view==='dashboard') render();
 }
-function browserNotificationControl(){
-  if(!('Notification' in window)) return '';
-  if(Notification.permission==='granted') return '<span class="tag">Browser notifications enabled</span>';
-  if(Notification.permission==='denied') return '<span class="tag">Browser notifications blocked</span>';
-  if(permissionPromptedThisSession) return '<span class="tag">Permission request sent</span>';
-  return '<button class="btn ghost small" onclick="requestBrowserNotifications()">Enable browser notifications</button>';
+async function connectNotificationStream(){
+  if(!state.token || state.role!=='student' || !window.fetch || !window.ReadableStream) return;
+  if(notificationStreamController) notificationStreamController.abort();
+  const controller = new AbortController();
+  notificationStreamController = controller;
+  try{
+    const response = await fetch(`${API_BASE}/api/v1/notifications/stream`, {
+      headers:{Authorization:`Bearer ${state.token}`,Accept:'text/event-stream'}, signal:controller.signal
+    });
+    if(!response.ok || !response.body) return;
+    const reader=response.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer='';
+    while(true){
+      const {value,done}=await reader.read();
+      if(done) break;
+      buffer+=decoder.decode(value,{stream:true});
+      let delimiter;
+      while((delimiter=/\r?\n\r?\n/.exec(buffer))){
+        const frame=buffer.slice(0,delimiter.index); buffer=buffer.slice(delimiter.index+delimiter[0].length);
+        const data=frame.split(/\r?\n/).filter(line=>line.startsWith('data:'))
+          .map(line=>line.slice(5).trim()).join('\n');
+        if(data){ try{ receiveNotification(JSON.parse(data)); }catch(error){ console.warn('Invalid notification event',error); } }
+      }
+    }
+  }catch(error){ if(error.name!=='AbortError') console.warn('Notification stream disconnected',error); }
+  finally{
+    if(notificationStreamController===controller){
+      notificationStreamController=null;
+      if(state.token && state.role==='student') setTimeout(connectNotificationStream,3000);
+    }
+  }
+}
+function receiveNotification(notification){
+  state.unreadCount++;
+  state.notifications=[notification,...(state.notifications || []).filter(item=>item.id!==notification.id)];
+  updateUnreadBadge();
+  if(state.view==='notifications') render();
+  if('Notification' in window && Notification.permission==='granted'){
+    const title=notification.actionRequired?'ACTION REQUIRED — myGRANT alert':'New myGRANT policy alert';
+    const browserNotification=new Notification(title,{body:notification.message,tag:`mygrant-${notification.id}`,
+      requireInteraction:!!notification.actionRequired,data:{id:notification.id}});
+    browserNotification.onclick=()=>{
+      window.focus();
+      goto('notificationDetail',notification.id);
+      browserNotification.close();
+    };
+  }
 }
 async function requestBrowserNotifications(){
   if(permissionPromptedThisSession) return;
@@ -759,7 +820,7 @@ async function requestBrowserNotifications(){
     if(permission==='granted') showToast('Browser notifications enabled.');
     else if(permission==='denied') showToast('Browser notifications are blocked. Inbox alerts remain available.');
     else showToast('You can enable browser notifications later in your browser settings.');
-    if(state.view==='dashboard') render();
+    if(state.view==='notifications') render();
   }catch(error){ showToast('Could not request notification permission.'); }
 }
 async function markNotificationRead(id){
@@ -800,91 +861,6 @@ async function uploadImmigrationDocument(event) {
   }
 }
 
-/* ---------------- LIVE NOTIFICATIONS ----------------
-   The server pushes each new notification over server-sent events. EventSource cannot
-   send the bearer token, so the stream is read through fetch and parsed by hand. */
-let notificationStream = null;
-function openNotificationStream(){
-  closeNotificationStream();
-  if(!state.token) return;
-  const controller = new AbortController();
-  notificationStream = controller;
-  readNotificationStream(controller);
-}
-function closeNotificationStream(){
-  if(notificationStream) notificationStream.abort();
-  notificationStream = null;
-}
-async function readNotificationStream(controller){
-  try{
-    const response = await apiFetch('/api/v1/notifications/stream',{headers:{Accept:'text/event-stream'},signal:controller.signal});
-    if(!response.ok || !response.body) throw new Error(`Stream refused (${response.status})`);
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    for(;;){
-      const {value, done} = await reader.read();
-      if(done) break;
-      buffer += decoder.decode(value,{stream:true}).replace(/\r\n?/g,'\n');
-      let end;
-      while((end = buffer.indexOf('\n\n')) >= 0){
-        handleStreamEvent(buffer.slice(0,end));
-        buffer = buffer.slice(end+2);
-      }
-    }
-  }catch(error){
-    if(controller.signal.aborted) return;
-  }
-  // The server closes idle streams and restarts drop them; reconnect unless logged out.
-  // Anything published while disconnected is picked up by the reload on reconnect.
-  if(notificationStream===controller) setTimeout(()=>{
-    if(notificationStream!==controller) return;
-    openNotificationStream();
-    loadNotifications();
-  },3000);
-}
-function handleStreamEvent(frame){
-  let name = 'message', data = '';
-  for(const line of frame.split('\n')){
-    if(line.startsWith('event:')) name = line.slice(6).trim();
-    else if(line.startsWith('data:')) data += line.slice(5).replace(/^ /,'');
-  }
-  if(name!=='notification' || !data) return;
-  const notification = JSON.parse(data);
-  showNotificationPopup(notification);
-  showBrowserNotification(notification);
-  loadNotifications();
-  loadPolicies();
-}
-/* The in-page popup only shows while this tab is in front; an OS notification reaches the
-   user in another tab or app too, once they have granted permission. */
-function showBrowserNotification(notification){
-  if(!('Notification' in window) || Notification.permission!=='granted') return;
-  const title = notification.actionRequired ? 'ACTION REQUIRED — myGRANT alert' : 'New myGRANT policy alert';
-  const browserNotification = new Notification(title,{body:notification.message,tag:`mygrant-${notification.id}`,
-    requireInteraction:!!notification.actionRequired});
-  browserNotification.onclick = ()=>{
-    window.focus();
-    goto('dashboard');
-    browserNotification.close();
-  };
-}
-function showNotificationPopup(notification){
-  const popup = document.createElement('div');
-  popup.className = `popup${notification.actionRequired?' action':''}`;
-  const fields = (notification.affectedFields || []).map(field=>`<span class="tag">${escapeHtml(field)}</span>`).join('');
-  popup.innerHTML = `
-    <div class="popup-head"><span>New policy alert</span><button class="popup-close" aria-label="Dismiss">&times;</button></div>
-    <p>${escapeHtml(notification.message)}</p>
-    <div class="tag-row">${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}${fields}</div>
-    <button class="btn ghost small">View in your alerts</button>`;
-  const dismiss = ()=>popup.remove();
-  popup.querySelector('.popup-close').onclick = dismiss;
-  popup.querySelector('.btn').onclick = ()=>{ dismiss(); goto('dashboard'); };
-  document.getElementById('popup-stack').prepend(popup);
-  // Action-needed alerts stay until dismissed; informational ones clear themselves.
-  if(!notification.actionRequired) setTimeout(dismiss,10000);
-}
 function updateUnreadBadge(){
   const badge = document.getElementById('nav-unread');
   if(!badge) return;
@@ -916,6 +892,8 @@ function showToast(msg){
 function render(){
   const main = document.getElementById('main');
   if(state.view==='dashboard') main.innerHTML = renderLiveDashboard();
+  else if(state.view==='notifications') main.innerHTML = renderNotifications();
+  else if(state.view==='notificationDetail') main.innerHTML = renderNotificationDetail(state.openAlert);
   else if(state.view==='alertDetail') main.innerHTML = renderAlertDetail(state.openAlert);
   else if(state.view==='profile') main.innerHTML = renderAccountProfile();
   else if(state.view==='manager') main.innerHTML = renderManager();
@@ -999,9 +977,9 @@ function renderLiveDashboard(){
 
   return `
     <div class="page-head">
-      <h1>Your alerts</h1>
+      <h1>Notifications</h1>
       <p class="sub">Policy changes matched to your visa category${visaType ? ` (${escapeHtml(visaType)})` : ''}. Flagged items touch information you have already entered in your profile.</p>
-      ${browserNotificationControl()}
+      ${'Notification' in window && Notification.permission==='granted' ? '<span class="tag">Browser notifications enabled</span>' : ('Notification' in window && Notification.permission==='denied' ? '<span class="tag">Browser notifications blocked</span>' : (permissionPromptedThisSession ? '<span class="tag">Permission request sent</span>' : '<button class="btn ghost small" onclick="requestBrowserNotifications()">Enable browser notifications</button>'))}
     </div>
 
     <div class="block-label">Notifications${state.unreadCount ? ` &middot; ${state.unreadCount} unread` : ''}</div>
@@ -1015,6 +993,17 @@ function renderLiveDashboard(){
     ${state.policyRecords===null
       ? (state.policyError ? '' : '<div class="empty">Loading policies...</div>')
       : policyRows || '<div class="empty"><div class="big">No matching policies yet</div>Import a Federal Register document from the RAG inspector.</div>'}`;
+}
+
+function renderNotificationDetail(id){
+  const notification=(state.notifications || []).find(item=>item.id===id);
+  if(!notification) return '<button class="back-link" onclick="goto(\'notifications\')">&larr; Back to notifications</button><div class="empty">Loading this alert…</div>';
+  return `<button class="back-link" onclick="goto('notifications')">&larr; Back to notifications</button>
+    <div class="entry ${notification.actionRequired?'urgency-high':'urgency-low'}"><div class="flag"></div>
+      <div class="entry-body"><div class="tag-row">${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}
+      ${(notification.affectedFields||[]).map(field=>`<span class="tag">${escapeHtml(field)}</span>`).join('')}</div>
+      <h2>${notification.actionRequired?'<span class="tag action">ACTION REQUIRED</span> ':''}${escapeHtml(notification.message)}</h2><p>${escapeHtml(formatTimestamp(notification.createdAt))}</p>
+      ${notification.read?'':`<button class="btn ghost small" onclick="markNotificationRead(${notification.id})">Mark read</button>`}</div></div>`;
 }
 
 function renderAlertDetail(id){
@@ -1108,13 +1097,15 @@ function renderProfileForm(){
 
       <div class="field">
         <label for="profile-origin">Country of origin</label>
-        <input id="profile-origin" value="${escapeAttribute(profile.countryOfOrigin || '')}">
+        <input id="profile-origin" list="profile-country-options" autocomplete="country-name" placeholder="Start typing a country" value="${escapeAttribute(profile.countryOfOrigin || '')}">
       </div>
 
       <div class="field">
         <label for="profile-citizenship">Country of citizenship</label>
-        <input id="profile-citizenship" value="${escapeAttribute(profile.countryOfCitizenship || '')}">
+        <input id="profile-citizenship" list="profile-country-options" autocomplete="country-name" placeholder="Start typing a country" value="${escapeAttribute(profile.countryOfCitizenship || '')}">
       </div>
+
+      <datalist id="profile-country-options">${countryOptions()}</datalist>
 
       <div class="field">
         <label for="profile-location">Current location</label>
@@ -1469,7 +1460,7 @@ function renderRag(){
       ${ingestSummary || '<div class="rag-status" style="margin:0;">Try <code>2026-14439</code> to import the F-1/J-1 fixed admission rule.</div>'}
     </form>
     ${state.ingestError?`<div class="rag-error"><strong>Import failed.</strong><br>${escapeHtml(state.ingestError)}</div>`:''}
-    ${ingest ? renderFederalRegisterSource(ingest) : ''}
+    ${ingest ? renderProfileImpact(ingest.impactAssessment) + renderFederalRegisterSource(ingest) : ''}
     <form class="rag-query-form" onsubmit="submitRagQuery(event)">
       <div class="field"><label for="rag-question">Ask about an indexed policy</label><input id="rag-question" maxlength="2000" required placeholder="How does the new fixed admission period affect an F-1 student?" value="${escapeAttribute(state.ragQuestion)}"></div>
       <div class="field"><label for="rag-visa-type">Visa category</label><select id="rag-visa-type"><option ${state.ragVisaType==='F-1'?'selected':''}>F-1</option><option ${state.ragVisaType==='J-1'?'selected':''}>J-1</option><option ${state.ragVisaType==='H-1B'?'selected':''}>H-1B</option></select></div>
@@ -1486,6 +1477,7 @@ function renderRag(){
 }
 function renderProofGrid(ingest, result, evidenceItems){
   const indexed = ingest && (ingest.ingestion?.alreadyIndexed || (ingest.ingestion?.chunksIndexed ?? 0) > 0);
+  const impact = ingest?.impactAssessment;
   const answerReady = result && result.answer;
   return `<div class="proof-grid">
     <div class="proof-card">
@@ -1501,11 +1493,39 @@ function renderProofGrid(ingest, result, evidenceItems){
       <span class="live-pill ${indexed?'pass':''}">${indexed?'Ready for RAG':'Waiting'}</span>
     </div>
     <div class="proof-card">
-      <div class="proof-kicker">STEP 3 · RAG ANSWER</div>
+      <div class="proof-kicker">STEP 3 &middot; PROFILE IMPACT</div>
+      <h3>${impact ? escapeHtml(formatUrgency(impact.urgency)) : 'Waiting for import'}</h3>
+      <p>${impact ? escapeHtml(impact.summary) : 'Groq compares the imported source with the signed-in user profile.'}</p>
+      <span class="live-pill ${impact && impact.urgency!=='UNAVAILABLE'?'pass':''}">${impact ? `${escapeHtml(impact.confidence)}% confidence` : 'Waiting'}</span>
+    </div>
+    <div class="proof-card">
+      <div class="proof-kicker">STEP 4 &middot; RAG ANSWER</div>
       <h3>${answerReady ? `${escapeHtml(evidenceItems.length)} chunks retrieved` : 'Ask a question'}</h3>
       <p>${answerReady ? `${escapeHtml((result.citations || []).length)} citation(s), confidence ${escapeHtml(result.confidence)}` : 'The answer below is generated from retrieved policy evidence, not pasted JSON.'}</p>
       <span class="live-pill ${answerReady?'pass':''}">${answerReady?'Answer generated':'Waiting'}</span>
     </div>
+  </div>`;
+}
+function formatUrgency(value){
+  return String(value || 'UNAVAILABLE').replaceAll('_',' ').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+}
+function renderProfileImpact(impact){
+  if(!impact) return '';
+  const reasons = (impact.reasons || []).map(item=>`<li>${escapeHtml(item)}</li>`).join('');
+  const actions = (impact.recommendedActions || []).map(item=>`<li>${escapeHtml(item)}</li>`).join('');
+  const ready = impact.urgency !== 'UNAVAILABLE';
+  return `<div class="source-card">
+    <div class="proof-kicker">PROFILE-SPECIFIC LLM ASSESSMENT</div>
+    <div class="evidence-meta">
+      <span class="live-pill ${ready?'pass':''}">${escapeHtml(formatUrgency(impact.urgency))}</span>
+      <span class="evidence-pill">${escapeHtml(impact.confidence)}% confidence</span>
+      <span class="evidence-pill">${escapeHtml(impact.provider)} &middot; ${escapeHtml(impact.model)}</span>
+      ${impact.requiresHumanReview?'<span class="evidence-pill">Human review</span>':''}
+    </div>
+    <p style="font-size:14.5px;line-height:1.65;margin:12px 0;">${escapeHtml(impact.summary)}</p>
+    ${reasons?`<div class="block-label">Why this urgency was assigned</div><ul class="warning-list">${reasons}</ul>`:''}
+    ${actions?`<div class="block-label">Recommended next steps</div><ul class="warning-list">${actions}</ul>`:''}
+    ${ready?'<p class="rag-status">This is automated triage based on the imported source, not legal advice.</p>':''}
   </div>`;
 }
 function renderFederalRegisterSource(ingest){

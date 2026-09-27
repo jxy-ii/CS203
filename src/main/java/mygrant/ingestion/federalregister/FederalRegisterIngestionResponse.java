@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import mygrant.ingestion.dto.IngestionResponse;
+import mygrant.impact.ProfileImpactAssessment;
 
 /** Import result including explainable visa classification and indexing status. */
 public record FederalRegisterIngestionResponse(
@@ -19,6 +20,7 @@ public record FederalRegisterIngestionResponse(
         boolean affectsH1b,
         List<String> detectedVisaTypes,
         List<String> matchedSignals,
-        IngestionResponse ingestion
+        IngestionResponse ingestion,
+        ProfileImpactAssessment impactAssessment
 ) {
 }

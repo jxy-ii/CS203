@@ -1,5 +1,7 @@
 package mygrant.ingestion;
 
+import java.security.Principal;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,7 +41,7 @@ public class IngestionController {
     @PostMapping("/federal-register/{documentNumber}")
     @ResponseStatus(HttpStatus.CREATED)
     public FederalRegisterIngestionResponse ingestFederalRegister(
-            @PathVariable String documentNumber) {
-        return federalRegisterIngestionService.ingest(documentNumber);
+            @PathVariable String documentNumber, Principal principal) {
+        return federalRegisterIngestionService.ingest(documentNumber, principal.getName());
     }
 }

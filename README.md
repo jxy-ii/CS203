@@ -111,6 +111,8 @@ API requests to the static-file server.
 Configuration can be overridden with `DATABASE_URL`, `DATABASE_USERNAME`,
 `DATABASE_PASSWORD`, `OLLAMA_BASE_URL`, and `OLLAMA_EMBEDDING_MODEL`.
 `JWT_SECRET` is required and must be a Base64-encoded key of at least 32 bytes.
+Copy `.env.example` to `.env` for the complete local configuration template. `.env`
+is ignored by Git and must never be committed.
 
 ### Google account welcome emails
 
@@ -213,7 +215,8 @@ document number:
 
 ```bash
 curl -s -X POST \
-  http://localhost:8080/ingestion/federal-register/2026-14439 | jq
+  http://localhost:8080/ingestion/federal-register/2026-14439 \
+  -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 The response includes classification flags and the signals that caused each match:
@@ -226,9 +229,38 @@ The response includes classification flags and the signals that caused each matc
   "affectsH1b": false,
   "detectedVisaTypes": ["F-1", "J-1"],
   "matchedSignals": ["F-1:academic student", "J-1:exchange visitor"],
-  "ingestion": { "chunksIndexed": 6, "alreadyIndexed": false }
+  "ingestion": { "chunksIndexed": 6, "alreadyIndexed": false },
+  "impactAssessment": {
+    "urgency": "HIGH",
+    "confidence": 92,
+    "summary": "The rule may affect the user's upcoming travel.",
+    "reasons": ["The profile contains upcoming travel near the effective date."],
+    "recommendedActions": ["Review the primary source and contact the school adviser."],
+    "requiresHumanReview": true,
+    "provider": "Groq",
+    "model": "openai/gpt-oss-20b"
+  }
 }
 ```
+
+### Enable profile-specific urgency classification
+
+Create a Groq API key, then add it only to the ignored `.env` file:
+
+```env
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=openai/gpt-oss-20b
+```
+
+Restart Spring Boot after changing `.env`. During each authenticated Federal Register
+import, the backend sends only relevant profile fields (not the user's name or email),
+policy metadata, deterministic visa matches, and a bounded source excerpt to Groq. Groq
+returns strict structured JSON with `HIGH`, `MEDIUM`, `LOW`, or `NOT_APPLICABLE` urgency,
+confidence, reasons, actions, and a human-review flag. The RAG Inspector displays that
+assessment immediately above the imported source.
+
+If `GROQ_API_KEY` is absent or the provider call fails, ingestion and pgvector indexing
+still complete. The response uses `UNAVAILABLE` instead of fabricating an assessment.
 
 The chunk count can vary. Importing the same unchanged document again returns
 `"alreadyIndexed":true` and `"chunksIndexed":0`; this means the existing vectors were
