@@ -37,7 +37,12 @@ public class PolicyImpactRules {
             Rule.of(ProfileField.PROGRAM_END_DATE, Set.of("F-1"),
                     "practical training", "stem opt"),
             Rule.of(ProfileField.ACADEMIC_LEVEL, Set.of("F-1", "J-1"),
-                    "educational level", "academic level", "degree level", "change of program"));
+                    "educational level", "academic level", "degree level", "change of program"),
+            // H-1B fee and entry rules act at the border and the consulate, so a worker
+            // with a trip booked is the one who has to check how they will re-enter.
+            Rule.of(ProfileField.UPCOMING_TRAVEL, Set.of("H-1B"),
+                    "entry-exit", "biometric entry and exit", "arrival and departure",
+                    "travel documents", "travel to the united states"));
 
     /**
      * Returns the affected fields for each visa type the policy was classified into,
