@@ -465,6 +465,7 @@ const initialState = () => ({
   documentsError: null
 });
 let state = initialState();
+let permissionPromptedThisSession = false;
 
 /* ---------- RAG pipeline scenarios ----------
    Each one traces a real /rag/query call end to end so you can see, at every
@@ -742,6 +743,25 @@ async function loadNotifications(){
   updateUnreadBadge();
   if(state.view==='dashboard') render();
 }
+function browserNotificationControl(){
+  if(!('Notification' in window)) return '';
+  if(Notification.permission==='granted') return '<span class="tag">Browser notifications enabled</span>';
+  if(Notification.permission==='denied') return '<span class="tag">Browser notifications blocked</span>';
+  if(permissionPromptedThisSession) return '<span class="tag">Permission request sent</span>';
+  return '<button class="btn ghost small" onclick="requestBrowserNotifications()">Enable browser notifications</button>';
+}
+async function requestBrowserNotifications(){
+  if(permissionPromptedThisSession) return;
+  permissionPromptedThisSession=true;
+  if(!('Notification' in window)){ showToast('Browser notifications are not supported here.'); return; }
+  try{
+    const permission=await Notification.requestPermission();
+    if(permission==='granted') showToast('Browser notifications enabled.');
+    else if(permission==='denied') showToast('Browser notifications are blocked. Inbox alerts remain available.');
+    else showToast('You can enable browser notifications later in your browser settings.');
+    if(state.view==='dashboard') render();
+  }catch(error){ showToast('Could not request notification permission.'); }
+}
 async function markNotificationRead(id){
   try{
     const response = await apiFetch(`/api/v1/notifications/${id}/read`,{method:'POST'});
@@ -830,9 +850,24 @@ function handleStreamEvent(frame){
     else if(line.startsWith('data:')) data += line.slice(5).replace(/^ /,'');
   }
   if(name!=='notification' || !data) return;
-  showNotificationPopup(JSON.parse(data));
+  const notification = JSON.parse(data);
+  showNotificationPopup(notification);
+  showBrowserNotification(notification);
   loadNotifications();
   loadPolicies();
+}
+/* The in-page popup only shows while this tab is in front; an OS notification reaches the
+   user in another tab or app too, once they have granted permission. */
+function showBrowserNotification(notification){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  const title = notification.actionRequired ? 'ACTION REQUIRED — myGRANT alert' : 'New myGRANT policy alert';
+  const browserNotification = new Notification(title,{body:notification.message,tag:`mygrant-${notification.id}`,
+    requireInteraction:!!notification.actionRequired});
+  browserNotification.onclick = ()=>{
+    window.focus();
+    goto('dashboard');
+    browserNotification.close();
+  };
 }
 function showNotificationPopup(notification){
   const popup = document.createElement('div');
@@ -936,7 +971,7 @@ function renderLiveDashboard(){
       <div class="flag"></div>
       <div class="entry-case">${escapeHtml(formatTimestamp(notification.createdAt))}<br>${notification.read?'Read':'Unread'}</div>
       <div class="entry-body">
-        <h3>${escapeHtml(notification.message)}</h3>
+        <h3>${notification.actionRequired?'<span class="tag action">ACTION REQUIRED</span> ':''}${escapeHtml(notification.message)}</h3>
         <div class="tag-row">
           ${notification.actionRequired?'<span class="tag action">Action needed</span>':'<span class="tag">For information</span>'}
           ${fields}
@@ -966,6 +1001,7 @@ function renderLiveDashboard(){
     <div class="page-head">
       <h1>Your alerts</h1>
       <p class="sub">Policy changes matched to your visa category${visaType ? ` (${escapeHtml(visaType)})` : ''}. Flagged items touch information you have already entered in your profile.</p>
+      ${browserNotificationControl()}
     </div>
 
     <div class="block-label">Notifications${state.unreadCount ? ` &middot; ${state.unreadCount} unread` : ''}</div>
