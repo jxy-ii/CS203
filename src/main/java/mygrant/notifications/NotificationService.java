@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import java.util.HashMap;
 
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,16 +33,16 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final PolicyImpactRules impactRules;
     private final UserProfileRepository userProfileRepository;
+    private final ApplicationEventPublisher events;
 
-    public NotificationService(
-            NotificationRepository notificationRepository,
-            UserRepository userRepository,
-            UserProfileRepository userProfileRepository,
-            PolicyImpactRules impactRules) {
+    public NotificationService(NotificationRepository notificationRepository,
+            UserRepository userRepository, UserProfileRepository userProfileRepository,
+            PolicyImpactRules impactRules, ApplicationEventPublisher events) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.impactRules = impactRules;
+        this.events = events;
     }
 
     /**
@@ -61,26 +62,29 @@ public class NotificationService {
         // The rules are visa-specific, so a policy covering several categories affects
         // different fields per reader. Read the policy text once for all of them.
         Map<String, Set<ProfileField>> fieldsByVisaType =
-                impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.indexedContent());
+                impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.content());
 
         Map<Long, Integer> profileVersionsByUserId = new HashMap<>();
+        userProfileRepository.findAllById(affected.stream().map(User::getId).toList())
+                .forEach(profile -> profileVersionsByUserId.put(
+                        profile.getUserId(), profile.getVersion()));
 
-    userProfileRepository.findAllById(
-            affected.stream().map(User::getId).toList()
-    ).forEach(profile -> profileVersionsByUserId.put(
-            profile.getUserId(),
-            profile.getVersion()
-    ));
-
-        notificationRepository.saveAll(affected.stream()
+        List<Notification> notifications = affected.stream()
                 .map(user -> toNotification(
                         user,
                         profileVersionsByUserId.getOrDefault(user.getId(), 1),
                         event,
                         message,
-                        fieldsByVisaType
-                ))
-                .toList());
+                        fieldsByVisaType))
+                .toList();
+        notificationRepository.saveAll(notifications);
+
+        // Ids are assigned on insert, so each notification is complete by now. The stream
+        // holds these until this transaction commits before pushing them to open pages.
+        for (int i = 0; i < affected.size(); i++) {
+            events.publishEvent(new NotificationCreatedEvent(affected.get(i).getEmail(),
+                    NotificationResponse.from(notifications.get(i))));
+        }
     }
 
     private Notification toNotification(

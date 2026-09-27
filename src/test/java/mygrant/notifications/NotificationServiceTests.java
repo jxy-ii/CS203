@@ -2,6 +2,7 @@ package mygrant.notifications;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,11 +16,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import mygrant.policies.PolicyIndexedEvent;
 import mygrant.user.User;
-import mygrant.user.UserProfileRepository;
 import mygrant.user.UserRepository;
 import mygrant.user.UserRole;
 import mygrant.user.UserProfile;
@@ -37,6 +38,9 @@ class NotificationServiceTests {
 
     @Mock
     private UserProfileRepository userProfileRepository;
+
+    @Mock
+    private ApplicationEventPublisher events;
 
     @Captor
     private ArgumentCaptor<List<Notification>> saved;
@@ -106,6 +110,78 @@ class NotificationServiceTests {
                     assertThat(notification.isActionRequired()).isFalse();
                     assertThat(notification.getMessage()).doesNotContain("Action needed");
                 });
+    }
+
+    @Test
+    void flagsUpcomingTravelForH1bWorkersOnAnEntryExitPolicy() {
+        User worker = user(8L, "worker@example.com");
+        worker.setVisaType("H-1B");
+        worker.setUpcomingTravelDate(LocalDate.parse("2026-12-20"));
+        when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("H-1B")))
+                .thenReturn(List.of(worker));
+
+        service().onPolicyIndexed(new PolicyIndexedEvent(3L,
+                "9-11 Response and Biometric Entry-Exit Fee for H-1B and L-1 Visas",
+                List.of("H-1B"), null, "Funds biometric entry and exit programs."));
+
+        verify(notificationRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).singleElement().satisfies(notification -> {
+            assertThat(notification.isActionRequired()).isTrue();
+            assertThat(notification.getAffectedFields()).containsExactly(ProfileField.UPCOMING_TRAVEL);
+            assertThat(notification.getMessage()).contains("Action needed: review your upcoming travel date");
+        });
+    }
+
+    @Test
+    void studentPolicyNeverReachesH1bWorkers() {
+        // Recipients come from the classified visa types, not the impact rules, so travel
+        // wording in an F-1/J-1 policy must not pull H-1B workers into the query.
+        when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("F-1", "J-1")))
+                .thenReturn(List.of(user(7L, "student@example.com")));
+
+        service().onPolicyIndexed(new PolicyIndexedEvent(3L, "Biometric entry and exit for students",
+                List.of("F-1", "J-1"), null, "Covers travel to the United States."));
+
+        verify(userRepository).findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("F-1", "J-1"));
+        verify(notificationRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(Notification::getUserId).containsExactly(7L);
+    }
+
+    @Test
+    void h1bPolicyNeverReachesStudentsOrExchangeVisitors() {
+        User worker = user(8L, "worker@example.com");
+        worker.setVisaType("H-1B");
+        when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("H-1B")))
+                .thenReturn(List.of(worker));
+
+        service().onPolicyIndexed(new PolicyIndexedEvent(3L, "Fee for Certain H-1B Petitions",
+                List.of("H-1B"), null, "Ends duration of status and changes academic level rules."));
+
+        verify(userRepository).findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("H-1B"));
+        verify(notificationRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(Notification::getUserId).containsExactly(8L);
+    }
+
+    @Test
+    void publishesEachNotificationToItsRecipientForLivePush() {
+        User student = user(7L, "student@example.com");
+        User exchange = user(9L, "exchange@example.com");
+        exchange.setVisaType("J-1");
+        when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("F-1", "J-1")))
+                .thenReturn(List.of(student, exchange));
+
+        service().onPolicyIndexed(new PolicyIndexedEvent(3L, "Fixed Time Period of Admission",
+                List.of("F-1", "J-1"), null, "Sets a fixed period of admission."));
+
+        ArgumentCaptor<NotificationCreatedEvent> published = ArgumentCaptor.forClass(NotificationCreatedEvent.class);
+        verify(events, times(2)).publishEvent(published.capture());
+        assertThat(published.getAllValues())
+                .extracting(NotificationCreatedEvent::recipientEmail)
+                .containsExactly("student@example.com", "exchange@example.com");
+        assertThat(published.getAllValues()).allSatisfy(event -> {
+            assertThat(event.notification().policyId()).isEqualTo(3L);
+            assertThat(event.notification().message()).contains("Fixed Time Period of Admission");
+        });
     }
 
     @Test
@@ -217,7 +293,8 @@ class NotificationServiceTests {
                 notificationRepository,
                 userRepository,
                 userProfileRepository,
-                new PolicyImpactRules()
+                new PolicyImpactRules(),
+                events
         );
     }
 

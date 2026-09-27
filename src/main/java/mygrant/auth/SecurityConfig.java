@@ -1,5 +1,6 @@
 package mygrant.auth;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,6 +38,9 @@ public class SecurityConfig {
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // A notification stream closing re-dispatches the already-authorized request,
+                // and the JWT filter does not run again for that dispatch.
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers("/", "/mygrant-prototype.html", "/favicon.ico",
                         "/api/v1/auth/register", "/api/v1/auth/login",
                         "/api/v1/auth/workos/login", "/api/v1/auth/workos/callback",

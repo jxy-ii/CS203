@@ -3,6 +3,8 @@ package mygrant.notifications;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,39 @@ class PolicyImpactRulesTests {
     void degreeLevelAffectsAcademicLevel() {
         assertThat(fieldsFor("F-1", "Eligibility by degree level", ""))
                 .containsExactly(ProfileField.ACADEMIC_LEVEL);
+    }
+
+    @Test
+    void entryAndExitRulesAffectTheUpcomingTravelOfH1bWorkers() {
+        // Wording taken from FR Doc 2024-12396, the 9-11 Response and Biometric Entry-Exit Fee.
+        assertThat(fieldsFor("H-1B", "9-11 Response and Biometric Entry-Exit Fee for H-1B and L-1 Visas",
+                "CBP implements biometric operations to monitor the arrival and departure of noncitizens."))
+                .containsExactly(ProfileField.UPCOMING_TRAVEL);
+        // Wording taken from FR Doc 2026-17324, Fee for Certain H-1B Petitions.
+        assertThat(fieldsFor("H-1B", "Fee for Certain H-1B Petitions",
+                "A citizen of a foreign country who seeks to travel to the United States generally "
+                        + "must first obtain a U.S. visa."))
+                .containsExactly(ProfileField.UPCOMING_TRAVEL);
+    }
+
+    @Test
+    void h1bPolicyWithoutTravelSignalsAffectsNothing() {
+        assertThat(fieldsFor("H-1B", "Fee for Certain H-1B Petitions",
+                "Employers filing a petition pay an additional fee toward full cost recovery."))
+                .isEmpty();
+    }
+
+    @Test
+    void travelSignalsDoNotAffectStudentOrExchangeVisitorCategories() {
+        // Shaped like FR Doc 2025-20932: classified F-1/J-1 only, so no H-1B reader exists
+        // even when the text carries every H-1B travel signal.
+        Map<String, Set<ProfileField>> byVisaType = rules.affectedFieldsByVisaType(List.of("F-1", "J-1"),
+                "Biometric entry and exit for students",
+                "Arrival and departure records, travel documents, and travel to the United States.");
+
+        assertThat(byVisaType).containsOnlyKeys("F-1", "J-1");
+        assertThat(byVisaType.values()).allSatisfy(fields ->
+                assertThat(fields).doesNotContain(ProfileField.UPCOMING_TRAVEL));
     }
 
     @Test
