@@ -65,15 +65,17 @@ public class NotificationService {
         Map<String, Set<ProfileField>> fieldsByVisaType =
                 impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.content());
 
-        Map<Long, Integer> profileVersionsByUserId = new HashMap<>();
+        // Impact checks read the versioned profile, which holds fields such as the employer
+        // that the legacy user row lacks. A user who never saved one falls back to their
+        // registration details at version 1.
+        Map<Long, UserProfile> profilesByUserId = new HashMap<>();
         userProfileRepository.findAllById(affected.stream().map(User::getId).toList())
-                .forEach(profile -> profileVersionsByUserId.put(
-                        profile.getUserId(), profile.getVersion()));
+                .forEach(profile -> profilesByUserId.put(profile.getUserId(), profile));
 
         List<Notification> saved = notificationRepository.saveAll(affected.stream()
                 .map(user -> toNotification(
                         user,
-                        profileVersionsByUserId.getOrDefault(user.getId(), 1),
+                        profilesByUserId.getOrDefault(user.getId(), UserProfile.fromUser(user)),
                         event,
                         message,
                         fieldsByVisaType))
@@ -100,17 +102,17 @@ public class NotificationService {
 
     private Notification toNotification(
         User user,
-        int profileVersion,
+        UserProfile profile,
         PolicyIndexedEvent event,
         String message,
         Map<String, Set<ProfileField>> fieldsByVisaType) {
         Set<ProfileField> policyFields = fieldsByVisaType
                 .getOrDefault(PolicyImpactRules.normalizeVisaType(user.getVisaType()), Set.of());
-        List<ProfileField> toReview = policyFields.stream().filter(field -> field.isFilledIn(user)).toList();
+        List<ProfileField> toReview = policyFields.stream().filter(field -> field.isFilledIn(profile)).toList();
         if (toReview.isEmpty()) {
                     return new Notification(
                 user.getId(),
-                profileVersion,
+                profile.getVersion(),
                 event.policyId(),
                 message,
                 toReview
@@ -119,7 +121,7 @@ public class NotificationService {
         String labels = toReview.stream().map(ProfileField::label).collect(Collectors.joining(", "));
         return new Notification(
                 user.getId(),
-                profileVersion,
+                profile.getVersion(),
                 event.policyId(),
                 truncate(message + ". Action needed: review your " + labels + "."),
                 toReview

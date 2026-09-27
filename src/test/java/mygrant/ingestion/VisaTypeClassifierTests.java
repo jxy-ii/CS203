@@ -38,4 +38,25 @@ class VisaTypeClassifierTests {
         assertThat(result.affectsH1b()).isFalse();
     }
 
+    @Test
+    void fullTextDropsTypesMentionedFarLessOftenThanTheMainOne() {
+        // Shaped like FR Doc 2026-18631: no signal in the title, and one footnote comparing F-1.
+        var result = classifier.classify("Eliminating the Discretionary 60-Day Grace Period",
+                "H-1B workers. H-1B employers. H-1B petitions. H-1B fees. H-1B grace period. "
+                        + "Compare the F-1 grace period.");
+
+        assertThat(result.visaTypes()).containsExactly("H-1B");
+        assertThat(result.matchedSignals()).containsExactly(
+                "F-1:dropped, 1 mentions is under 25% of the top count 5", "H-1B:h-1b x5");
+    }
+
+    @Test
+    void fullTextKeepsTypesAtTheThreshold() {
+        var result = classifier.classify("Nonimmigrant admission update",
+                "H-1B. H-1B. H-1B. H-1B. F-1.");
+
+        assertThat(result.visaTypes()).containsExactly("F-1", "H-1B");
+        assertThat(result.matchedSignals()).containsExactly("F-1:f-1 x1", "H-1B:h-1b x4");
+    }
+
 }

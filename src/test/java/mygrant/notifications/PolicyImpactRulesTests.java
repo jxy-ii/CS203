@@ -48,16 +48,36 @@ class PolicyImpactRulesTests {
     }
 
     @Test
-    void entryAndExitRulesAffectTheUpcomingTravelOfH1bWorkers() {
-        // Wording taken from FR Doc 2024-12396, the 9-11 Response and Biometric Entry-Exit Fee.
-        assertThat(fieldsFor("H-1B", "9-11 Response and Biometric Entry-Exit Fee for H-1B and L-1 Visas",
-                "CBP implements biometric operations to monitor the arrival and departure of noncitizens."))
+    void entryExitRulesThatActOnTheTravellerAffectUpcomingTravel() {
+        // Made-up wording: a rule that changes what a worker must do when crossing the border.
+        assertThat(fieldsFor("H-1B", "Biometric Entry-Exit Collection for H-1B Workers",
+                "Each H-1B worker must provide biometrics at the port of entry on every departure "
+                        + "and re-entry."))
                 .containsExactly(ProfileField.UPCOMING_TRAVEL);
-        // Wording taken from FR Doc 2026-17324, Fee for Certain H-1B Petitions.
+    }
+
+    @Test
+    void entryExitNamedOnlyInAFeeAffectsNoOne() {
+        // Wording taken from FR Doc 2024-12396, a fee employers pay; "entry-exit" is in its name,
+        // and its passages about the exit system describe the agency, not a traveller.
+        assertThat(fieldsFor("H-1B", "9-11 Response and Biometric Entry-Exit Fee for H-1B and L-1 Visas",
+                "CBP is responsible for implementing an integrated and automated entry-exit system that "
+                        + "matches biographic data and biometrics of noncitizens entering and departing "
+                        + "the United States."))
+                .isEmpty();
+        // Wording taken from FR Doc 2026-17324, also paid by employers; this sentence is background.
         assertThat(fieldsFor("H-1B", "Fee for Certain H-1B Petitions",
                 "A citizen of a foreign country who seeks to travel to the United States generally "
-                        + "must first obtain a U.S. visa."))
-                .containsExactly(ProfileField.UPCOMING_TRAVEL);
+                        + "must first obtain a U.S. visa. See CBP 9-11 Response and Biometric Entry-Exit Fee."))
+                .isEmpty();
+    }
+
+    @Test
+    void travelContextFurtherThanTheWindowDoesNotCount() {
+        String filler = "x".repeat(PolicyImpactRules.CONTEXT_WINDOW) + " ";
+        assertThat(fieldsFor("H-1B", "Border update",
+                "Every departure is recorded. " + filler + "The entry-exit system is funded."))
+                .isEmpty();
     }
 
     @Test
@@ -78,6 +98,42 @@ class PolicyImpactRulesTests {
         assertThat(byVisaType).containsOnlyKeys("F-1", "J-1");
         assertThat(byVisaType.values()).allSatisfy(fields ->
                 assertThat(fields).doesNotContain(ProfileField.UPCOMING_TRAVEL));
+    }
+
+    @Test
+    void workerGracePeriodAffectsH1bEmploymentAndNotStudentProgramDates() {
+        // Wording shaped like FR Doc 2026-18631, Eliminating the Discretionary 60-Day Grace Period.
+        Map<String, Set<ProfileField>> byVisaType = rules.affectedFieldsByVisaType(
+                List.of("F-1", "J-1", "H-1B"),
+                "Eliminating the Discretionary 60-Day Grace Period",
+                "DHS removes the grace period that followed the cessation of an H-1B worker's employment.");
+
+        assertThat(byVisaType.get("H-1B")).containsExactly(ProfileField.EMPLOYMENT);
+        assertThat(byVisaType.get("F-1")).isEmpty();
+        assertThat(byVisaType.get("J-1")).isEmpty();
+    }
+
+    @Test
+    void studentGracePeriodStillAffectsProgramEndDate() {
+        assertThat(fieldsFor("F-1", "Grace period update",
+                "An F-1 student has a 60-day grace period after program completion."))
+                .containsExactly(ProfileField.PROGRAM_END_DATE);
+    }
+
+    @Test
+    void contextWordsFurtherThanTheWindowDoNotCount() {
+        String filler = "x".repeat(PolicyImpactRules.CONTEXT_WINDOW) + " ";
+        assertThat(fieldsFor("F-1", "Status update",
+                "An F-1 student remains. " + filler + "The grace period ends."))
+                .isEmpty();
+    }
+
+    @Test
+    void changeOfEmployerAffectsNoOne() {
+        // Wording taken from FR Doc 2024-12396, which exempts these petitions from its fee.
+        String exemption = "Extension-of-stay petitions that do not involve a change of employer.";
+        assertThat(fieldsFor("F-1", "Fee update", exemption)).isEmpty();
+        assertThat(fieldsFor("H-1B", "Fee update", exemption)).isEmpty();
     }
 
     @Test

@@ -147,9 +147,10 @@ class NotificationServiceTests {
         when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("H-1B")))
                 .thenReturn(List.of(worker));
 
+        // Made-up wording: a rule that changes what a worker must do when crossing the border.
         service().onPolicyIndexed(new PolicyIndexedEvent(3L,
-                "9-11 Response and Biometric Entry-Exit Fee for H-1B and L-1 Visas",
-                List.of("H-1B"), null, "Funds biometric entry and exit programs."));
+                "Biometric Entry-Exit Collection for H-1B Workers",
+                List.of("H-1B"), null, "Workers provide biometrics at the port of entry on each departure."));
 
         verify(notificationRepository).saveAll(saved.capture());
         assertThat(saved.getValue()).singleElement().satisfies(notification -> {
@@ -157,6 +158,39 @@ class NotificationServiceTests {
             assertThat(notification.getAffectedFields()).containsExactly(ProfileField.UPCOMING_TRAVEL);
             assertThat(notification.getMessage()).contains("Action needed: review your upcoming travel date");
         });
+    }
+
+    @Test
+    void flagsH1bEmploymentFromTheSavedProfileOnAWorkerGracePeriodPolicy() {
+        User student = user(7L, "student@example.com");
+        student.setProgramEndDate(LocalDate.parse("2028-05-31"));
+        User worker = user(8L, "worker@example.com");
+        worker.setVisaType("H-1B");
+        // The employer exists only on the versioned profile; the legacy user row has no such field.
+        UserProfile workerProfile = UserProfile.fromUser(worker);
+        workerProfile.setEmployer("Acme Corp");
+        when(userRepository.findByRoleAndVisaTypeIn(UserRole.APPLICANT, List.of("F-1", "H-1B")))
+                .thenReturn(List.of(student, worker));
+        when(userProfileRepository.findAllById(List.of(7L, 8L))).thenReturn(List.of(workerProfile));
+
+        // Shaped like FR Doc 2026-18631, which the classifier also filed under F-1.
+        service().onPolicyIndexed(new PolicyIndexedEvent(3L, "Eliminating the Discretionary 60-Day Grace Period",
+                List.of("F-1", "H-1B"), null,
+                "Removes the grace period that followed the cessation of an H-1B worker's employment."));
+
+        verify(notificationRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).filteredOn(notification -> notification.getUserId().equals(8L))
+                .singleElement().satisfies(notification -> {
+                    assertThat(notification.isActionRequired()).isTrue();
+                    assertThat(notification.getAffectedFields()).containsExactly(ProfileField.EMPLOYMENT);
+                    assertThat(notification.getMessage())
+                            .contains("Action needed: review your employer and employment status");
+                });
+        assertThat(saved.getValue()).filteredOn(notification -> notification.getUserId().equals(7L))
+                .singleElement().satisfies(notification -> {
+                    assertThat(notification.isActionRequired()).isFalse();
+                    assertThat(notification.getMessage()).doesNotContain("Action needed");
+                });
     }
 
     @Test

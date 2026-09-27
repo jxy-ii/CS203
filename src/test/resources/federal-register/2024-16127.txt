@@ -1,0 +1,290 @@
+<html>
+<head>
+<title>Federal Register, Volume 89 Issue 141 (Tuesday, July 23, 2024)</title>
+</head>
+<body><pre>
+[Federal Register Volume 89, Number 141 (Tuesday, July 23, 2024)]
+[Notices]
+[Pages 59748-59750]
+From the Federal Register Online via the Government Publishing Office [<a href="http://www.gpo.gov">www.gpo.gov</a>]
+[FR Doc No: 2024-16127]
+
+
+-----------------------------------------------------------------------
+
+DEPARTMENT OF HOMELAND SECURITY
+
+U.S. Immigration and Customs Enforcement
+
+[Docket No. ICEB-2023-0018]
+RIN 1653-ZA46
+
+
+Update to the Department of Homeland Security STEM Designated 
+Degree Program List
+
+AGENCY: U.S. Immigration and Customs Enforcement (ICE), Department of 
+Homeland Security (DHS).
+
+ACTION: Notice.
+
+-----------------------------------------------------------------------
+
+SUMMARY: This notice announces that the Secretary of Homeland Security 
+(Secretary) is amending the DHS STEM Designated Degree Program List by 
+adding one qualifying field of study and a corresponding Department of 
+Education Classification of Instructional Programs (CIP) code for that 
+field. The list is used to determine whether a degree obtained by 
+certain F-1 nonimmigrant students following the completion of a program 
+of study qualifies as a science, technology, engineering, or 
+mathematics (STEM) degree as determined by DHS, as required for the F-1 
+student to be eligible to apply for a 24-month extension of their post-
+completion optional practical training (OPT).
+
+DATES: DHS adopts the list announced in this notice as of July 23, 
+2024.
+
+FOR FURTHER INFORMATION CONTACT: Sharon Snyder, Unit Chief, Policy and 
+Response Center Unit, Student and Exchange Visitor Program; U.S. 
+Immigration and Customs Enforcement, 500 12th Street SW, Stop 5600, 
+Washington, DC 20536-5600; email: <a href="/cdn-cgi/l/email-protection#2754425157674e444209434f5409404851"><span class="__cf_email__" data-cfemail="7201170402321b11175c161a015c151d04">[email&#160;protected]</span></a>, telephone: (703) 
+603-3400. This is not a toll-free number. Program information is 
+available at <a href="https://www.ice.gov/sevis/">https://www.ice.gov/sevis/</a>.
+
+SUPPLEMENTARY INFORMATION:
+
+What action is DHS taking under this notice?
+
+    The Department of Homeland Security (DHS) is updating the list of 
+STEM fields of study that fall within the regulatory definition of 
+``STEM field'' to add one field of study.\1\ The list, known as the DHS 
+STEM Designated Degree Program List (``STEM list''),\2\ is used to 
+determine whether a degree obtained by an F-1 nonimmigrant student 
+qualifies as a STEM degree, as required for the F-1 nonimmigrant 
+student to be eligible to apply for a STEM OPT extension. The current 
+format of the STEM list, which consists of four primary CIP code series 
+designated at the two-digit level, and CIP codes in related fields 
+designated at the six-digit level, was established in a final rule 
+issued in 2016.\3\ The STEM list was most recently updated in 2023.\4\
+---------------------------------------------------------------------------
+
+    \1\ While the 2016 STEM Rule provided for ``additions or 
+deletions to the list,'' no deletions will be made at this time.
+    \2\ ICE, DHS STEM Designated Degree Program List, <a href="https://www.ice.gov/doclib/sevis/pdf/stemList2023.pdf">https://www.ice.gov/doclib/sevis/pdf/stemList2023.pdf</a> (last visited June 6, 
+2024).
+    \3\ See 81 FR 13040, Mar. 11, 2016.
+    \4\ See 88 FR 44381, July 12, 2023.
+---------------------------------------------------------------------------
+
+Why is DHS taking this action?
+
+    In 2016, DHS published a final rule providing a 24-month extension 
+of OPT for F-1 nonimmigrant students who majored in a designated STEM 
+field of study. See 81 FR 13040 (Mar. 11, 2016) (``Improving and 
+Expanding Training Opportunities for F-1 Nonimmigrant Students With 
+STEM Degrees and Cap-Gap Relief for All Eligible F-1 Students'') 
+(``2016 STEM Rule''). The 2016 STEM Rule stated that DHS will continue 
+to accept for consideration suggested additions or deletions to the 
+STEM list and may publish updates to the STEM list in the Federal 
+Register. DHS announced the addition of qualifying fields of study to 
+the STEM list in Federal Register notices published in 2022 (see 87 FR 
+3317 (Jan. 21, 2022)) and 2023 (see 88 FR 44381 (July 12, 2023)). These 
+notices also included instructions for how interested parties, 
+including members of the public, can nominate CIP codes for potential 
+inclusion on or removal from the STEM list. Following publication of 
+the 2023 Federal Register notice, DHS received a total of 133 
+nominations, representing 68 unique fields of study, to be added to the 
+STEM list.\5\ DHS did not receive any nominations to remove CIP codes 
+currently on the list. Nominators may resubmit a nomination
+
+[[Page 59749]]
+
+with additional supporting views and evidence, at any time, if their 
+original submission is not addressed in this notice.
+---------------------------------------------------------------------------
+
+    \5\ These included nominations for medical fields focused on 
+patient care and for business fields of study. Beginning with the 
+2016 STEM Rule (81 FR 13040, 13075), DHS has generally declined ``to 
+define `STEM field' to include patient care and business fields of 
+study.''
+---------------------------------------------------------------------------
+
+What is OPT and STEM OPT?
+
+    OPT is one type of work permission available to certain F-1 
+nonimmigrant students. It allows eligible F-1 students (except those in 
+English language training programs) to obtain real-world work 
+experience directly related to their major area of study.
+    The STEM OPT extension is a 24-month extension of OPT available to 
+F-1 nonimmigrant students who have completed 12 months of OPT and 
+received a degree in an approved STEM field of study as designated by 
+the STEM list.
+
+Who may be impacted by this notice?
+
+    This notice may impact qualifying F-1 nonimmigrant students who 
+seek a 24- month extension of post-completion OPT.
+
+Where can I find the STEM list?
+
+    The STEM list can be found in the docket for this notice and on the 
+Student and Exchange Visitor Program (SEVP) website.\6\
+---------------------------------------------------------------------------
+
+    \6\ See SEVP, Eligible CIP Codes for the STEM OPT Extension, 
+<a href="https://studyinthestates.dhs.gov/stem-opt-hub/additional-resources/eligible-cip-codes-for-the-stem-opt-extension">https://studyinthestates.dhs.gov/stem-opt-hub/additional-resources/eligible-cip-codes-for-the-stem-opt-extension</a> (last visited June 6, 
+2024).
+---------------------------------------------------------------------------
+
+What authority does DHS have to make changes to the STEM list?
+
+    The Secretary has broad authority to administer and enforce the 
+Nation's immigration laws. See generally 6 U.S.C. 202; Immigration and 
+Nationality Act of 1952, as amended (INA), sec. 103, 8 U.S.C. 1103. The 
+INA establishes the F-1 nonimmigrant classification for individuals who 
+wish to enter the United States temporarily and solely for the purpose 
+of pursuing a full course of study at an academic institution or 
+accredited language training school certified by the U.S. Immigration 
+and Customs Enforcement's (ICE) SEVP. See INA sec. 101(a)(15)(F)(i), 8 
+U.S.C. 1101(a)(15)(F)(i). The INA provides the Secretary with broad 
+authority to determine the time and conditions under which 
+nonimmigrants, including F-1 students, may be admitted to the United 
+States. See INA sec. 214(a)(1), 8 U.S.C. 1184(a)(1). The Secretary also 
+has broad authority to determine which individuals are authorized for 
+employment in the United States. See INA sec. 274A(h)(3), 8 U.S.C. 
+1324a(h)(3). Finally, the Secretary, or his or her designee, has 
+authority to maintain the STEM list, which is a complete list of 
+qualifying degree program categories published on the SEVP website at 
+<a href="https://www.ice.gov/sevis/schools#dhs-stem-designated-degree-program-list-and-cip-code-nomination-process">https://www.ice.gov/sevis/schools#dhs-stem-designated-degree-program-list-and-cip-code-nomination-process</a>. Changes that are made to the STEM 
+list may also be published in a notice in the Federal Register. See 8 
+CFR 214.2(f)(10)(ii)(C)(2)(ii).
+
+Who may nominate a CIP code?
+
+    Interested parties, including members of the public, may nominate a 
+CIP code for inclusion on, or removal from, the STEM list. CIP codes 
+that already appear on the DHS STEM Designated Degree Program List do 
+not need to be nominated.
+
+How does DHS assess nominations?
+
+    Nominations to add or remove degrees from the STEM list are 
+assessed consistent with the authorizing regulation.\7\ As defined in 
+the governing regulations, a STEM field is a field included in the CIP 
+taxonomy \8\ that falls within the two-digit series containing 
+engineering, biological sciences, mathematics and statistics, and 
+physical sciences, or a related field, which generally involves 
+research, innovation, or development of new technologies using 
+engineering, mathematics, computer science, or natural sciences 
+(including physical, biological, and agricultural sciences). See 8 CFR 
+214.2(f)(10)(ii)(C)(2)(i). This definition is widely used by U.S. 
+institutions of higher education and provides an objective measure by 
+which to identify STEM fields of study.
+---------------------------------------------------------------------------
+
+    \7\ See 8 CFR 214.2(f)(10)(ii)(C)(2).
+    \8\ The CIP taxonomy is a taxonomic scheme that was developed by 
+the Department of Education's National Center for Education 
+Statistics (NCES) to support the accurate tracking and reporting of 
+fields of study and program completion activity. See the NCES 
+website (<a href="https://nces.ed.gov/ipeds/cipcode/default.aspx?y=55">https://nces.ed.gov/ipeds/cipcode/default.aspx?y=55</a>) (last 
+visited June 6, 2024).
+---------------------------------------------------------------------------
+
+    Through regulation,\9\ DHS has designated four areas as core STEM 
+fields and lists these four areas at the two-digit CIP code level. As a 
+result, any new additions to those areas are automatically included on 
+the STEM list. These four areas are: Engineering (CIP code 14), 
+Biological and Biomedical Sciences (CIP code 26), Mathematics and 
+Statistics (CIP code 27), and Physical Sciences (CIP code 40). If a 
+degree is not within the four core fields, DHS considers whether the 
+degree is in a STEM-related field listed at the six-digit level. The 
+six-digit designation allows for individualized review of a specific 
+field of study to ensure it meets the ``related field'' criteria of 
+``involving research, innovation, or development of new technologies 
+using engineering, mathematics, computer science, or natural sciences 
+(including physical, biological, and agricultural sciences).''
+---------------------------------------------------------------------------
+
+    \9\ See 8 CFR 214.2(f)(10)(ii)(C)(2)(i).
+---------------------------------------------------------------------------
+
+    SEVP evaluates submissions to assess whether the degree is 
+generally considered to be a STEM degree by recognized authorities, 
+including input from educational institutions, governmental entities, 
+and non-governmental entities. SEVP also reviews the National Center 
+for Education Statistics (NCES) definition of the CIP code, and any 
+supporting material submitted by the nominator, such as the required 
+curriculum for the degree and the extent to which it is comprised of 
+core STEM disciplines, as well as research, innovation, and development 
+of new technologies using engineering, mathematics, computer science, 
+or natural sciences (including physical, biological, and agricultural 
+sciences). Nominators may consider providing supporting materials such 
+as letters from educational institutions that offer the degree program 
+attesting to the integration of STEM disciplines in their programs and 
+evidence of STEM engagement in program graduates' subsequent careers. 
+Additionally, degree requirements and curriculum from multiple 
+nominators may be assessed across academic institutions and compared to 
+industry or professional standards to ensure that the core aspects of 
+the degree are sufficiently consistent among educational institutions.
+    A proposed addition is not required to have all supporting elements 
+to be added to the STEM list. DHS assesses the totality of the 
+submission and may approve the proposed CIP code if the submission 
+presents sufficient evidence and reasoning to establish that the degree 
+under consideration fits within the regulatory definition of a STEM 
+field.
+
+How may a nomination be submitted?
+
+    Nominations may be submitted by email to the SEVP Response Center 
+at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3261776462725b51571c565a411c555d44">[email&#160;protected]</a>, with the subject line ``Attention: STEM CIP Code 
+Nomination.'' Nominators should review the current DHS STEM Designated 
+Degree Program List before submitting their nomination. Interested 
+parties do not need to submit a nomination for a CIP code that is 
+already on the DHS STEM Designated Degree Program List.
+
+What new fields of study will be added to the STEM list?
+
+    The following field of study is being added to the STEM list:
+
+[[Page 59750]]
+
+    Environmental/Natural Resource Economics (03.0204). A program that 
+focuses on the application of economic concepts and methods to the 
+analysis of issues such as air and water pollution, land use planning, 
+waste disposal, invasive species and pest control, conservation 
+policies, and related environmental problems. Includes instruction in 
+cost-benefit analysis, environmental impact assessment, evaluation and 
+assessment of alternative resource management strategies, policy 
+evaluation and monitoring, and descriptive and analytic tools for 
+studying how environmental developments affect the economic system. 
+This field of study, as described in the NCES definition, is comprised 
+of STEM disciplines such as research, innovation, or development of new 
+technologies using natural sciences and mathematics.
+
+Paperwork Reduction Act (PRA)
+
+    Eligible students are required to submit a Form I-765, 
+``Application for Employment Authorization,'' to request employment 
+authorization and an Employment Authorization Document, and a Form I-
+983, ``Training Plan for STEM OPT Students,'' to ensure that they are 
+receiving the academic and training benefits of the STEM OPT extension. 
+Consistent with the PRA, the Office of Management and Budget (OMB) has 
+previously approved the collection of information contained on the 
+current Form I-765 (OMB Control No. 1615-0040) and Form I-983 (OMB 
+Control No. 1653-0054).
+    Although there could be a slight increase in the number of filings 
+for both the Form I-765 and Form I-983 because of this notice, the 
+number of filings currently contained in the OMB annual inventory is 
+sufficient to cover any additional filings. Accordingly, there is no 
+further action required under the PRA.
+
+Alejandro N. Mayorkas,
+Secretary, U.S. Department of Homeland Security.
+[FR Doc. 2024-16127 Filed 7-22-24; 8:45 am]
+BILLING CODE 9111-CB-P
+
+
+</pre><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>
