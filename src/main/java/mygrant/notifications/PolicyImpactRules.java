@@ -1,12 +1,12 @@
 package mygrant.notifications;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -24,13 +24,35 @@ public class PolicyImpactRules {
     // before matching, otherwise multi-word signals never match a downloaded rule.
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
+    // How far either side of a signal a context word may sit, in characters of the
+    // collapsed text. About a sentence or two: near enough that the word describes the same
+    // provision, far enough to reach a subject named earlier in the sentence.
+    static final int CONTEXT_WINDOW = 200;
+
+    // Words that place a signal in a student or exchange visitor provision.
+    private static final List<String> STUDENT_CONTEXT = List.of(
+            "f-1", "j-1", "student", "students", "exchange visitor", "exchange visitors", "sevis",
+            "designated school official", "responsible officer", "academic", "program completion",
+            "completion of the program", "completion of studies");
+
+    // Words that place a signal in an employment-based provision.
+    private static final List<String> WORKER_CONTEXT = List.of(
+            "h-1b", "employment", "employer", "employers", "worker", "workers", "cessation",
+            "petitioner", "specialty occupation");
+
     // Rules are scoped by visa type because one policy can be classified into several
     // categories. Without the scope, an H-1B reader would be told to review a field
     // that only the F-1 half of the policy touches.
     private static final List<Rule> RULES = List.of(
+            // These phrases only describe how long a student or exchange visitor may stay,
+            // so they need no surrounding context.
             Rule.of(ProfileField.PROGRAM_END_DATE, Set.of("F-1", "J-1"),
-                    "period of admission", "duration of status", "date certain",
-                    "program end date", "grace period"),
+                    "duration of status", "date certain", "program end date"),
+            // Workers have a period of admission and a grace period too; FR Doc 2026-18631
+            // ends the 60-day grace period after an H-1B job ends. These count only where
+            // the text around them is about students.
+            Rule.near(ProfileField.PROGRAM_END_DATE, Set.of("F-1", "J-1"), STUDENT_CONTEXT,
+                    "period of admission", "grace period"),
             // Practical training moves the work-authorization dates that follow a program
             // end date. It says nothing about which degree the student is enrolled in, so
             // it deliberately does not flag the academic level as well.
@@ -42,7 +64,15 @@ public class PolicyImpactRules {
             // with a trip booked is the one who has to check how they will re-enter.
             Rule.of(ProfileField.UPCOMING_TRAVEL, Set.of("H-1B"),
                     "entry-exit", "biometric entry and exit", "arrival and departure",
-                    "travel documents", "travel to the united states"));
+                    "travel documents", "travel to the united states"),
+            // An H-1B worker's status depends on the sponsoring job, so a rule about losing or
+            // changing that job is one the worker has to check against their employer.
+            Rule.of(ProfileField.EMPLOYMENT, Set.of("H-1B"),
+                    "cessation of employment", "loss of employment", "termination of employment",
+                    "change of employer", "change employers", "h-1b portability"),
+            // The worker counterpart of the student grace period rule above.
+            Rule.near(ProfileField.EMPLOYMENT, Set.of("H-1B"), WORKER_CONTEXT,
+                    "grace period"));
 
     /**
      * Returns the affected fields for each visa type the policy was classified into,
@@ -78,20 +108,54 @@ public class PolicyImpactRules {
         return fields;
     }
 
-    /** One field, the visa types it applies to, and the signals that trigger it. */
-    private record Rule(ProfileField field, Set<String> visaTypes, List<Pattern> signals) {
+    /**
+     * One field, the visa types it applies to, the signals that trigger it and, for signals
+     * too generic to stand alone, the context words one of which must sit nearby.
+     */
+    private record Rule(ProfileField field, Set<String> visaTypes, List<Pattern> signals,
+            List<Pattern> context) {
+
+        static Rule of(ProfileField field, Set<String> visaTypes, String... signals) {
+            return new Rule(field, visaTypes, patterns(List.of(signals)), List.of());
+        }
+
+        static Rule near(ProfileField field, Set<String> visaTypes, List<String> context,
+                String... signals) {
+            return new Rule(field, visaTypes, patterns(List.of(signals)), patterns(context));
+        }
 
         // Signals match on word boundaries so that an unrelated word ending in a signal,
         // such as "candidate certain", does not trigger a review.
-        static Rule of(ProfileField field, Set<String> visaTypes, String... signals) {
-            return new Rule(field, visaTypes, Arrays.stream(signals)
-                    .map(signal -> Pattern.compile("\\b" + Pattern.quote(signal) + "\\b"))
-                    .toList());
+        private static List<Pattern> patterns(List<String> words) {
+            return words.stream()
+                    .map(word -> Pattern.compile("\\b" + Pattern.quote(word) + "\\b"))
+                    .toList();
         }
 
         boolean matches(String visaType, String text) {
             return visaTypes.contains(visaType)
-                    && signals.stream().anyMatch(signal -> signal.matcher(text).find());
+                    && signals.stream().anyMatch(signal -> occursInContext(signal, text));
+        }
+
+        // A policy can use a signal in one provision about workers and another about
+        // students, so every occurrence is checked; one in the right context is enough.
+        private boolean occursInContext(Pattern signal, String text) {
+            Matcher occurrence = signal.matcher(text);
+            while (occurrence.find()) {
+                if (context.isEmpty() || contextNear(text, occurrence.start(), occurrence.end())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Transparent bounds let the word boundary see past the window's edges, so a word
+        // cut by the window, such as "unemployment", is not read as "employment".
+        private boolean contextNear(String text, int start, int end) {
+            int from = Math.max(0, start - CONTEXT_WINDOW);
+            int to = Math.min(text.length(), end + CONTEXT_WINDOW);
+            return context.stream().anyMatch(word -> word.matcher(text)
+                    .region(from, to).useTransparentBounds(true).find());
         }
     }
 }

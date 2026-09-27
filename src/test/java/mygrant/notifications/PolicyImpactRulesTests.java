@@ -81,6 +81,42 @@ class PolicyImpactRulesTests {
     }
 
     @Test
+    void workerGracePeriodAffectsH1bEmploymentAndNotStudentProgramDates() {
+        // Wording shaped like FR Doc 2026-18631, Eliminating the Discretionary 60-Day Grace Period.
+        Map<String, Set<ProfileField>> byVisaType = rules.affectedFieldsByVisaType(
+                List.of("F-1", "J-1", "H-1B"),
+                "Eliminating the Discretionary 60-Day Grace Period",
+                "DHS removes the grace period that followed the cessation of an H-1B worker's employment.");
+
+        assertThat(byVisaType.get("H-1B")).containsExactly(ProfileField.EMPLOYMENT);
+        assertThat(byVisaType.get("F-1")).isEmpty();
+        assertThat(byVisaType.get("J-1")).isEmpty();
+    }
+
+    @Test
+    void studentGracePeriodStillAffectsProgramEndDate() {
+        assertThat(fieldsFor("F-1", "Grace period update",
+                "An F-1 student has a 60-day grace period after program completion."))
+                .containsExactly(ProfileField.PROGRAM_END_DATE);
+    }
+
+    @Test
+    void contextWordsFurtherThanTheWindowDoNotCount() {
+        String filler = "x".repeat(PolicyImpactRules.CONTEXT_WINDOW) + " ";
+        assertThat(fieldsFor("F-1", "Status update",
+                "An F-1 student remains. " + filler + "The grace period ends."))
+                .isEmpty();
+    }
+
+    @Test
+    void changeOfEmployerDoesNotAffectStudents() {
+        assertThat(fieldsFor("F-1", "Portability update", "Clarifies a change of employer."))
+                .isEmpty();
+        assertThat(fieldsFor("H-1B", "Portability update", "Clarifies a change of employer."))
+                .containsExactly(ProfileField.EMPLOYMENT);
+    }
+
+    @Test
     void signalsMatchAcrossTheLineWrappingInDownloadedPolicyText() {
         // Federal Register raw text is hard-wrapped, so a signal arrives split over two lines.
         assertThat(fieldsFor("F-1", "Admission periods",
