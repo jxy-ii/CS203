@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -13,8 +14,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import mygrant.notifications.dto.NotificationResponse;
 import mygrant.policies.PolicyIndexedEvent;
@@ -29,14 +28,14 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final PolicyImpactRules impactRules;
-    private final NotificationStreamRegistry streamRegistry;
+    private final ApplicationEventPublisher events;
 
     public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
-            PolicyImpactRules impactRules, NotificationStreamRegistry streamRegistry) {
+            PolicyImpactRules impactRules, ApplicationEventPublisher events) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.impactRules = impactRules;
-        this.streamRegistry = streamRegistry;
+        this.events = events;
     }
 
     /**
@@ -56,29 +55,19 @@ public class NotificationService {
         // The rules are visa-specific, so a policy covering several categories affects
         // different fields per reader. Read the policy text once for all of them.
         Map<String, Set<ProfileField>> fieldsByVisaType =
-                impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.indexedContent());
+                impactRules.affectedFieldsByVisaType(visaTypes, event.title(), event.content());
 
-        List<Notification> saved = notificationRepository.saveAll(affected.stream()
+        List<Notification> notifications = affected.stream()
                 .map(user -> toNotification(user, event, message, fieldsByVisaType))
-                .toList());
-        // Publish only after these rows commit. A disconnected stream cannot undo persistence.
-        Runnable publishSaved = () -> {
-            for (Notification notification : saved) {
-                try {
-                    streamRegistry.publish(notification.getUserId(), NotificationResponse.from(notification));
-                } catch (RuntimeException ignored) {
-                    // A disconnected or unhealthy stream never rolls back alert creation.
-                }
-            }
-        };
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            publishSaved.run();
-        } else TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                publishSaved.run();
-            }
-        });
+                .toList();
+        notificationRepository.saveAll(notifications);
+
+        // Ids are assigned on insert, so each notification is complete by now. The stream
+        // holds these until this transaction commits before pushing them to open pages.
+        for (int i = 0; i < affected.size(); i++) {
+            events.publishEvent(new NotificationCreatedEvent(affected.get(i).getEmail(),
+                    NotificationResponse.from(notifications.get(i))));
+        }
     }
 
     private Notification toNotification(User user, PolicyIndexedEvent event, String message,
