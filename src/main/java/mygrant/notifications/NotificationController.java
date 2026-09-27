@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import mygrant.notifications.dto.NotificationResponse;
+import mygrant.user.UserRepository;
 
 /** The logged-in user's notification inbox. */
 @RestController
@@ -22,11 +23,22 @@ import mygrant.notifications.dto.NotificationResponse;
 public class NotificationController {
 
     private final NotificationService notificationService;
-    private final NotificationStream notificationStream;
+    private final NotificationStreamRegistry streamRegistry;
+    private final UserRepository userRepository;
 
-    public NotificationController(NotificationService notificationService, NotificationStream notificationStream) {
+    public NotificationController(NotificationService notificationService,
+            NotificationStreamRegistry streamRegistry, UserRepository userRepository) {
         this.notificationService = notificationService;
-        this.notificationStream = notificationStream;
+        this.streamRegistry = streamRegistry;
+        this.userRepository = userRepository;
+    }
+
+    /** The regular bearer-token security filter authenticates this request; the JWT is never in the URL. */
+    @GetMapping(path = "/stream", produces = "text/event-stream")
+    public SseEmitter stream(Authentication authentication) {
+        Long userId = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new IllegalStateException("Authenticated user no longer exists")).getId();
+        return streamRegistry.connect(userId);
     }
 
     @GetMapping
@@ -38,12 +50,6 @@ public class NotificationController {
     @GetMapping("/unread-count")
     public Map<String, Long> unreadCount(Authentication authentication) {
         return Map.of("unread", notificationService.unreadCount(authentication.getName()));
-    }
-
-    /** Pushes each new notification to the caller as a server-sent {@code notification} event. */
-    @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(Authentication authentication) {
-        return notificationStream.subscribe(authentication.getName());
     }
 
     @PostMapping("/{id}/read")

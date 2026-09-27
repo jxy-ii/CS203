@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 import java.util.HashMap;
 
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -16,6 +15,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import mygrant.notifications.dto.NotificationResponse;
 import mygrant.policies.PolicyIndexedEvent;
@@ -33,16 +34,16 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final PolicyImpactRules impactRules;
     private final UserProfileRepository userProfileRepository;
-    private final ApplicationEventPublisher events;
+    private final NotificationStreamRegistry streamRegistry;
 
     public NotificationService(NotificationRepository notificationRepository,
             UserRepository userRepository, UserProfileRepository userProfileRepository,
-            PolicyImpactRules impactRules, ApplicationEventPublisher events) {
+            PolicyImpactRules impactRules, NotificationStreamRegistry streamRegistry) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.impactRules = impactRules;
-        this.events = events;
+        this.streamRegistry = streamRegistry;
     }
 
     /**
@@ -69,22 +70,32 @@ public class NotificationService {
                 .forEach(profile -> profileVersionsByUserId.put(
                         profile.getUserId(), profile.getVersion()));
 
-        List<Notification> notifications = affected.stream()
+        List<Notification> saved = notificationRepository.saveAll(affected.stream()
                 .map(user -> toNotification(
                         user,
                         profileVersionsByUserId.getOrDefault(user.getId(), 1),
                         event,
                         message,
                         fieldsByVisaType))
-                .toList();
-        notificationRepository.saveAll(notifications);
-
-        // Ids are assigned on insert, so each notification is complete by now. The stream
-        // holds these until this transaction commits before pushing them to open pages.
-        for (int i = 0; i < affected.size(); i++) {
-            events.publishEvent(new NotificationCreatedEvent(affected.get(i).getEmail(),
-                    NotificationResponse.from(notifications.get(i))));
-        }
+                .toList());
+        // Publish only after these rows commit. A disconnected stream cannot undo persistence.
+        Runnable publishSaved = () -> {
+            for (Notification notification : saved) {
+                try {
+                    streamRegistry.publish(notification.getUserId(), NotificationResponse.from(notification));
+                } catch (RuntimeException ignored) {
+                    // A disconnected or unhealthy stream never rolls back alert creation.
+                }
+            }
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            publishSaved.run();
+        } else TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publishSaved.run();
+            }
+        });
     }
 
     private Notification toNotification(
