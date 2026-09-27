@@ -228,7 +228,7 @@
   .rag-import-form input{font-family:var(--sans);font-size:14px;padding:10px 12px;border:1px solid var(--line);background:#FCFBF8;width:100%;}
   .rag-import-form .btn:disabled{opacity:.55;cursor:wait;}
   .ingest-result{border-left:3px solid var(--calm);background:var(--calm-bg);padding:12px 14px;font-size:13px;line-height:1.55;}
-  .proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px;}
+  .proof-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:22px;}
   .proof-card{background:var(--panel);border:1px solid var(--line);padding:14px 16px;min-height:112px;}
   .proof-kicker{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-bottom:10px;}
   .proof-card h3{font-family:var(--serif);font-size:15.5px;margin:0 0 6px;}
@@ -1457,7 +1457,7 @@ function renderRag(){
       ${ingestSummary || '<div class="rag-status" style="margin:0;">Try <code>2026-14439</code> to import the F-1/J-1 fixed admission rule.</div>'}
     </form>
     ${state.ingestError?`<div class="rag-error"><strong>Import failed.</strong><br>${escapeHtml(state.ingestError)}</div>`:''}
-    ${ingest ? renderFederalRegisterSource(ingest) : ''}
+    ${ingest ? renderProfileImpact(ingest.impactAssessment) + renderFederalRegisterSource(ingest) : ''}
     <form class="rag-query-form" onsubmit="submitRagQuery(event)">
       <div class="field"><label for="rag-question">Ask about an indexed policy</label><input id="rag-question" maxlength="2000" required placeholder="How does the new fixed admission period affect an F-1 student?" value="${escapeAttribute(state.ragQuestion)}"></div>
       <div class="field"><label for="rag-visa-type">Visa category</label><select id="rag-visa-type"><option ${state.ragVisaType==='F-1'?'selected':''}>F-1</option><option ${state.ragVisaType==='J-1'?'selected':''}>J-1</option><option ${state.ragVisaType==='H-1B'?'selected':''}>H-1B</option></select></div>
@@ -1474,6 +1474,7 @@ function renderRag(){
 }
 function renderProofGrid(ingest, result, evidenceItems){
   const indexed = ingest && (ingest.ingestion?.alreadyIndexed || (ingest.ingestion?.chunksIndexed ?? 0) > 0);
+  const impact = ingest?.impactAssessment;
   const answerReady = result && result.answer;
   return `<div class="proof-grid">
     <div class="proof-card">
@@ -1489,11 +1490,39 @@ function renderProofGrid(ingest, result, evidenceItems){
       <span class="live-pill ${indexed?'pass':''}">${indexed?'Ready for RAG':'Waiting'}</span>
     </div>
     <div class="proof-card">
-      <div class="proof-kicker">STEP 3 · RAG ANSWER</div>
+      <div class="proof-kicker">STEP 3 &middot; PROFILE IMPACT</div>
+      <h3>${impact ? escapeHtml(formatUrgency(impact.urgency)) : 'Waiting for import'}</h3>
+      <p>${impact ? escapeHtml(impact.summary) : 'Groq compares the imported source with the signed-in user profile.'}</p>
+      <span class="live-pill ${impact && impact.urgency!=='UNAVAILABLE'?'pass':''}">${impact ? `${escapeHtml(impact.confidence)}% confidence` : 'Waiting'}</span>
+    </div>
+    <div class="proof-card">
+      <div class="proof-kicker">STEP 4 &middot; RAG ANSWER</div>
       <h3>${answerReady ? `${escapeHtml(evidenceItems.length)} chunks retrieved` : 'Ask a question'}</h3>
       <p>${answerReady ? `${escapeHtml((result.citations || []).length)} citation(s), confidence ${escapeHtml(result.confidence)}` : 'The answer below is generated from retrieved policy evidence, not pasted JSON.'}</p>
       <span class="live-pill ${answerReady?'pass':''}">${answerReady?'Answer generated':'Waiting'}</span>
     </div>
+  </div>`;
+}
+function formatUrgency(value){
+  return String(value || 'UNAVAILABLE').replaceAll('_',' ').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+}
+function renderProfileImpact(impact){
+  if(!impact) return '';
+  const reasons = (impact.reasons || []).map(item=>`<li>${escapeHtml(item)}</li>`).join('');
+  const actions = (impact.recommendedActions || []).map(item=>`<li>${escapeHtml(item)}</li>`).join('');
+  const ready = impact.urgency !== 'UNAVAILABLE';
+  return `<div class="source-card">
+    <div class="proof-kicker">PROFILE-SPECIFIC LLM ASSESSMENT</div>
+    <div class="evidence-meta">
+      <span class="live-pill ${ready?'pass':''}">${escapeHtml(formatUrgency(impact.urgency))}</span>
+      <span class="evidence-pill">${escapeHtml(impact.confidence)}% confidence</span>
+      <span class="evidence-pill">${escapeHtml(impact.provider)} &middot; ${escapeHtml(impact.model)}</span>
+      ${impact.requiresHumanReview?'<span class="evidence-pill">Human review</span>':''}
+    </div>
+    <p style="font-size:14.5px;line-height:1.65;margin:12px 0;">${escapeHtml(impact.summary)}</p>
+    ${reasons?`<div class="block-label">Why this urgency was assigned</div><ul class="warning-list">${reasons}</ul>`:''}
+    ${actions?`<div class="block-label">Recommended next steps</div><ul class="warning-list">${actions}</ul>`:''}
+    ${ready?'<p class="rag-status">This is automated triage based on the imported source, not legal advice.</p>':''}
   </div>`;
 }
 function renderFederalRegisterSource(ingest){

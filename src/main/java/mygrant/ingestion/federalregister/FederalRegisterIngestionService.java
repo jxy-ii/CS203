@@ -9,6 +9,8 @@ import mygrant.ingestion.classification.VisaClassification;
 import mygrant.ingestion.classification.VisaTypeClassifier;
 import mygrant.ingestion.dto.IngestPolicyRequest;
 import mygrant.ingestion.dto.IngestionResponse;
+import mygrant.impact.ProfileImpactAssessment;
+import mygrant.impact.ProfileImpactAssessmentService;
 import mygrant.policies.PolicyStatus;
 import mygrant.policies.SourceType;
 
@@ -24,16 +26,19 @@ public class FederalRegisterIngestionService {
     private final FederalRegisterClient client;
     private final VisaTypeClassifier classifier;
     private final PolicyIngestionService ingestionService;
+    private final ProfileImpactAssessmentService impactAssessmentService;
 
     public FederalRegisterIngestionService(FederalRegisterClient client,
-            VisaTypeClassifier classifier, PolicyIngestionService ingestionService) {
+            VisaTypeClassifier classifier, PolicyIngestionService ingestionService,
+            ProfileImpactAssessmentService impactAssessmentService) {
         this.client = client;
         this.classifier = classifier;
         this.ingestionService = ingestionService;
+        this.impactAssessmentService = impactAssessmentService;
     }
 
     /** Imports a published document by number; repeat imports are idempotent. */
-    public FederalRegisterIngestionResponse ingest(String documentNumber) {
+    public FederalRegisterIngestionResponse ingest(String documentNumber, String userEmail) {
         FederalRegisterDocument document = client.getDocument(documentNumber);
         if (document == null) {
             throw new IllegalArgumentException("Federal Register document was not found: " + documentNumber);
@@ -58,12 +63,16 @@ public class FederalRegisterIngestionService {
                 document.htmlUrl(),
                 content), content.substring(0, Math.min(content.length(), MAX_INDEX_CHARACTERS)));
 
+        String agency = agencyNames(document);
+        ProfileImpactAssessment impactAssessment = impactAssessmentService.assess(
+                userEmail, document, agency, content, classification);
+
         return new FederalRegisterIngestionResponse(
-                document.documentNumber(), document.title(), document.type(), agencyNames(document),
+                document.documentNumber(), document.title(), document.type(), agency,
                 document.publicationDate(), document.effectiveDate(), document.htmlUrl(),
                 classification.affectsF1(), classification.affectsJ1(),
                 classification.affectsH1b(), classification.visaTypes(),
-                classification.matchedSignals(), ingestion);
+                classification.matchedSignals(), ingestion, impactAssessment);
     }
 
     private String agencyNames(FederalRegisterDocument document) {
