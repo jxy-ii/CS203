@@ -371,6 +371,13 @@
 </div>
 
 <script>
+/* Shared by profile completion and editing. Native datalists allow both selection
+   and type-ahead filtering without requiring a third-party UI dependency. */
+const COUNTRIES = `Afghanistan|Albania|Algeria|Andorra|Angola|Antigua and Barbuda|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia and Herzegovina|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cabo Verde|Cambodia|Cameroon|Canada|Central African Republic|Chad|Chile|China|Colombia|Comoros|Costa Rica|Croatia|Cuba|Cyprus|Czechia|Democratic Republic of the Congo|Denmark|Djibouti|Dominica|Dominican Republic|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Eswatini|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guinea-Bissau|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kosovo|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|North Macedonia|Norway|Oman|Pakistan|Palau|Palestine|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Republic of the Congo|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent and the Grenadines|Samoa|San Marino|Sao Tome and Principe|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Timor-Leste|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|United Kingdom|United States|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe`.split('|');
+function countryOptions(){
+  return COUNTRIES.map(country=>`<option value="${escapeAttribute(country)}"></option>`).join('');
+}
+
 /* ---------------- MOCK DATA ---------------- */
 const policies = {
   p1:{title:'Fixed time period replaces Duration of Status for F-1/J-1', agency:'DHS · Federal Register', status:'Final rule', citation:'8 CFR §214.1 · 90 Fed. Reg. 41221 · effective Sept 15, 2026'},
@@ -555,10 +562,13 @@ function renderProfileCompletion(){
   return `<div class="page-head"><h1>Complete your profile</h1><p class="sub">Your Google account is connected. Add your visa details before using myGRANT.</p></div>
     <form class="form-grid" onsubmit="submitProfileCompletion(event)">
       <div class="field"><label for="workos-visa">Visa category</label><select id="workos-visa" required><option>F-1</option><option>J-1</option><option>H-1B</option></select></div>
+      <div class="field"><label for="workos-origin">Country of origin</label><input id="workos-origin" list="workos-country-options" autocomplete="country-name" placeholder="Start typing a country"></div>
+      <div class="field"><label for="workos-citizenship">Country of citizenship</label><input id="workos-citizenship" list="workos-country-options" autocomplete="country-name" placeholder="Start typing a country"></div>
       <div class="field"><label for="workos-level">Academic level</label><select id="workos-level"><option value="">Not specified</option><option>Undergraduate</option><option>Master's</option><option>PhD</option><option>Other</option></select></div>
       <div class="field"><label for="workos-end-date">Program end date</label><input id="workos-end-date" type="date"></div>
       <div class="field"><label for="workos-location">Current location</label><select id="workos-location"><option value="">Not specified</option><option value="US">US</option><option value="ABROAD">Abroad</option></select></div>
       <div class="field"><label for="workos-travel-date">Upcoming travel date</label><input id="workos-travel-date" type="date"></div>
+      <datalist id="workos-country-options">${countryOptions()}</datalist>
       <div class="form-actions"><button class="btn" type="submit">Save profile</button></div>
       <div id="profile-error" class="auth-error" style="display:none;grid-column:1/-1;"></div>
     </form>`;
@@ -570,6 +580,8 @@ async function submitProfileCompletion(event){
   try{
     const response=await apiFetch('/api/v1/profiles/me',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       visaType:document.getElementById('workos-visa').value,
+      countryOfOrigin:document.getElementById('workos-origin').value.trim() || null,
+      countryOfCitizenship:document.getElementById('workos-citizenship').value.trim() || null,
       academicLevel:document.getElementById('workos-level').value || null,
       programEndDate:document.getElementById('workos-end-date').value || null,
       currentLocation:document.getElementById('workos-location').value || null,
@@ -1082,13 +1094,15 @@ function renderProfileForm(){
 
       <div class="field">
         <label for="profile-origin">Country of origin</label>
-        <input id="profile-origin" value="${escapeAttribute(profile.countryOfOrigin || '')}">
+        <input id="profile-origin" list="profile-country-options" autocomplete="country-name" placeholder="Start typing a country" value="${escapeAttribute(profile.countryOfOrigin || '')}">
       </div>
 
       <div class="field">
         <label for="profile-citizenship">Country of citizenship</label>
-        <input id="profile-citizenship" value="${escapeAttribute(profile.countryOfCitizenship || '')}">
+        <input id="profile-citizenship" list="profile-country-options" autocomplete="country-name" placeholder="Start typing a country" value="${escapeAttribute(profile.countryOfCitizenship || '')}">
       </div>
+
+      <datalist id="profile-country-options">${countryOptions()}</datalist>
 
       <div class="field">
         <label for="profile-location">Current location</label>
