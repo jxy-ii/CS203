@@ -68,7 +68,9 @@
   .auth-form{display:grid;gap:13px;}
   .auth-error{background:var(--urgent-bg);color:var(--urgent);padding:10px 12px;font-size:12.5px;line-height:1.45;margin-top:12px;}
   .auth-status{color:var(--muted);font-size:12px;margin-top:12px;}
-  .google-btn{width:100%;margin-bottom:18px;background:#fff;color:var(--ink);border:1px solid var(--line);}
+  .auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--muted);font-size:12px;}
+  .auth-divider::before,.auth-divider::after{content:"";height:1px;background:var(--line);flex:1;}
+  .google-btn{width:100%;background:#fff;color:var(--ink);border:1px solid var(--line);}
   .google-btn:hover{background:#FBFAF7;border-color:var(--ink);}
 
   /* ---------- APP SHELL ---------- */
@@ -291,7 +293,6 @@
     <div class="login-right" id="account-login">
       <h1>Welcome to myGRANT</h1>
       <p class="sub">Sign in to access your policy profile and the live RAG pipeline.</p>
-      <button class="btn google-btn" type="button" onclick="startWorkosLogin()">Continue with Google</button>
       <div class="auth-tabs">
         <button id="login-tab" class="auth-tab active" type="button" onclick="showAuthMode('login')">Sign in</button>
         <button id="register-tab" class="auth-tab" type="button" onclick="showAuthMode('register')">Create account</button>
@@ -312,6 +313,8 @@
         <div class="field"><label for="register-travel-date">Upcoming travel date</label><input id="register-travel-date" type="date"></div>
         <button class="btn" type="submit" data-label="Create account">Create account</button>
       </form>
+      <div class="auth-divider" role="separator"><span>or</span></div>
+      <button class="btn google-btn" type="button" onclick="startWorkosLogin()">Continue with Google</button>
       <div id="auth-error" class="auth-error" style="display:none;"></div>
       <div id="auth-status" class="auth-status"></div>
     </div>
