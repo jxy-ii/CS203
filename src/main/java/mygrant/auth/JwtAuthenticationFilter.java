@@ -42,11 +42,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String subject = jwtService.extractSubject(token);
 
+            var user = subject == null ? java.util.Optional.<mygrant.user.User>empty()
+                    : userRepository.findByEmail(subject);
             if (subject != null
                     && SecurityContextHolder.getContext().getAuthentication() == null
-                    && userRepository.findByEmail(subject)
-                    .map(user -> jwtService.isTokenValid(token, user.getEmail()))
-                    .orElse(false)) {
+                    && user.isPresent()
+                    && jwtService.isTokenValid(token, user.get().getEmail())) {
+                if (!user.get().isProfileComplete()
+                        && !request.getRequestURI().equals("/api/v1/profiles/me")) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                            "Complete your profile before using this feature");
+                    return;
+                }
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(subject, null, java.util.Collections.emptyList());

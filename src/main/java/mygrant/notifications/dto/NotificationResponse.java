@@ -10,6 +10,7 @@ import mygrant.notifications.ProfileField;
 public record NotificationResponse(
         Long id,
         Long policyId,
+        int profileVersion,
         String message,
         Instant createdAt,
         boolean read,
@@ -17,9 +18,17 @@ public record NotificationResponse(
         List<String> affectedFields
 ) {
     public static NotificationResponse from(Notification notification) {
-        return new NotificationResponse(notification.getId(), notification.getPolicyId(),
-                notification.getMessage(), notification.getCreatedAt(), notification.getReadAt() != null,
-                notification.isActionRequired(),
-                notification.getAffectedFields().stream().map(ProfileField::label).toList());
+        return new NotificationResponse(
+        notification.getId(),
+        notification.getPolicyId(),
+        notification.getProfileVersion(),
+        notification.getMessage(),
+        notification.getCreatedAt(),
+        notification.getReadAt() != null,
+        notification.isActionRequired(),
+        notification.getAffectedFields().stream()
+                .map(ProfileField::label)
+                .toList()
+        );
     }
 }

@@ -68,6 +68,8 @@
   .auth-form{display:grid;gap:13px;}
   .auth-error{background:var(--urgent-bg);color:var(--urgent);padding:10px 12px;font-size:12.5px;line-height:1.45;margin-top:12px;}
   .auth-status{color:var(--muted);font-size:12px;margin-top:12px;}
+  .google-btn{width:100%;margin-bottom:18px;background:#fff;color:var(--ink);border:1px solid var(--line);}
+  .google-btn:hover{background:#FBFAF7;border-color:var(--ink);}
 
   /* ---------- APP SHELL ---------- */
   #app{display:none;min-height:100vh;grid-template-columns:232px 1fr;}
@@ -289,6 +291,7 @@
     <div class="login-right" id="account-login">
       <h1>Welcome to myGRANT</h1>
       <p class="sub">Sign in to access your policy profile and the live RAG pipeline.</p>
+      <button class="btn google-btn" type="button" onclick="startWorkosLogin()">Continue with Google</button>
       <div class="auth-tabs">
         <button id="login-tab" class="auth-tab active" type="button" onclick="showAuthMode('login')">Sign in</button>
         <button id="register-tab" class="auth-tab" type="button" onclick="showAuthMode('register')">Create account</button>
@@ -296,7 +299,7 @@
       <form id="login-form" class="auth-form" onsubmit="submitLogin(event)">
         <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="email" required></div>
         <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
-        <button class="btn" type="submit">Sign in</button>
+        <button class="btn" type="submit" data-label="Sign in">Sign in</button>
       </form>
       <form id="register-form" class="auth-form" onsubmit="submitRegistration(event)" style="display:none;">
         <div class="field"><label for="register-name">Full name</label><input id="register-name" minlength="2" maxlength="100" required></div>
@@ -307,7 +310,7 @@
         <div class="field"><label for="register-end-date">Program end date</label><input id="register-end-date" type="date"></div>
         <div class="field"><label for="register-location">Current location</label><select id="register-location"><option value="">Not specified</option><option value="US">US</option><option value="ABROAD">Abroad</option></select></div>
         <div class="field"><label for="register-travel-date">Upcoming travel date</label><input id="register-travel-date" type="date"></div>
-        <button class="btn" type="submit">Create account</button>
+        <button class="btn" type="submit" data-label="Create account">Create account</button>
       </form>
       <div id="auth-error" class="auth-error" style="display:none;"></div>
       <div id="auth-status" class="auth-status"></div>
@@ -417,7 +420,50 @@ let sources = [
 ];
 
 const API_BASE = location.port === '8080' ? '' : 'http://localhost:8080';
-const initialState = () => ({ role:null, user:null, token:sessionStorage.getItem('mygrantToken'), policyRecords:null, policyError:null, notifications:null, notificationsError:null, unreadCount:0, view:null, openAlert:null, ragLoading:false, ragResult:null, ragError:null, ragQuestion:'', ragVisaType:'F-1', ingestLoading:false, ingestResult:null, ingestError:null, frDocNumber:'2026-14439' });
+function consumeWorkosRedirect(){
+  const params = new URLSearchParams(
+    location.hash.replace(/^#/,'').replace(/^\?/,'')
+  );
+  const token = params.get('workosToken');
+  const error = params.get('workosError');
+
+  if (token) {
+    sessionStorage.setItem('mygrantToken', token);
+  }
+
+  if (token || error) {
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+
+  return error;
+}
+
+const workosRedirectError = consumeWorkosRedirect();
+
+const initialState = () => ({
+  role: null,
+  user: null,
+  profile: null,
+  token: sessionStorage.getItem('mygrantToken'),
+  policyRecords: null,
+  policyError: null,
+  notifications: null,
+  notificationsError: null,
+  unreadCount: 0,
+  view: null,
+  openAlert: null,
+  ragLoading: false,
+  ragResult: null,
+  ragError: null,
+  ragQuestion: '',
+  ragVisaType: 'F-1',
+  ingestLoading: false,
+  ingestResult: null,
+  ingestError: null,
+  frDocNumber: '2026-14439',
+  documents: null,
+  documentsError: null
+});
 let state = initialState();
 
 /* ---------- RAG pipeline scenarios ----------
@@ -489,9 +535,57 @@ function enterApp(role){
   document.getElementById('nav-admin').style.display = role==='admin' ? 'block':'none';
   document.getElementById('nav-tools').style.display = role!=='admin' ? 'block':'none';
   document.getElementById('role-tag').textContent = role.toUpperCase()+' VIEW';
+  if(state.user && state.user.profileComplete === false){
+    document.querySelectorAll('.nav-group').forEach(element=>element.style.display='none');
+    document.getElementById('main').innerHTML = renderProfileCompletion();
+    return;
+  }
   const first = role==='student' ? 'dashboard' : role==='manager' ? 'manager' : 'admin';
   goto(first);
   if(role==='student') openNotificationStream();
+}
+function startWorkosLogin(){
+  window.location.href = `${API_BASE}/api/v1/auth/workos/login`;
+}
+function renderProfileCompletion(){
+  return `<div class="page-head"><h1>Complete your profile</h1><p class="sub">Your Google account is connected. Add your visa details before using myGRANT.</p></div>
+    <form class="form-grid" onsubmit="submitProfileCompletion(event)">
+      <div class="field"><label for="workos-visa">Visa category</label><select id="workos-visa" required><option>F-1</option><option>J-1</option><option>H-1B</option></select></div>
+      <div class="field"><label for="workos-level">Academic level</label><select id="workos-level"><option value="">Not specified</option><option>Undergraduate</option><option>Master's</option><option>PhD</option><option>Other</option></select></div>
+      <div class="field"><label for="workos-end-date">Program end date</label><input id="workos-end-date" type="date"></div>
+      <div class="field"><label for="workos-location">Current location</label><select id="workos-location"><option value="">Not specified</option><option value="US">US</option><option value="ABROAD">Abroad</option></select></div>
+      <div class="field"><label for="workos-travel-date">Upcoming travel date</label><input id="workos-travel-date" type="date"></div>
+      <div class="form-actions"><button class="btn" type="submit">Save profile</button></div>
+      <div id="profile-error" class="auth-error" style="display:none;grid-column:1/-1;"></div>
+    </form>`;
+}
+async function submitProfileCompletion(event){
+  event.preventDefault();
+  const error=document.getElementById('profile-error');
+  error.style.display='none';
+  try{
+    const response=await apiFetch('/api/v1/profiles/me',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      visaType:document.getElementById('workos-visa').value,
+      academicLevel:document.getElementById('workos-level').value || null,
+      programEndDate:document.getElementById('workos-end-date').value || null,
+      currentLocation:document.getElementById('workos-location').value || null,
+      upcomingTravelDate:document.getElementById('workos-travel-date').value || null
+    })});
+    state.profile = await parseApiResponse(response);
+
+    state.user.profileComplete = true;
+    state.user.visaType = state.profile.visaType;
+    state.user.academicLevel = state.profile.academicLevel;
+    state.user.programEndDate = state.profile.programEndDate;
+    state.user.currentLocation = state.profile.currentLocation;
+    state.user.upcomingTravelDate = state.profile.upcomingTravelDate;
+    state.ragVisaType = state.profile.visaType || 'F-1';
+
+    enterApp(roleForUser(state.user.role));
+  }catch(exception){
+    error.textContent=exception.message;
+    error.style.display='block';
+  }
 }
 function logout(){
   closeNotificationStream();
@@ -514,7 +608,11 @@ function setAuthMessage(message){
   element.textContent=message;
   element.style.display=message?'block':'none';
 }
-function setAuthBusy(message){ document.getElementById('auth-status').textContent=message; }
+function setAuthBusy(message){
+  document.getElementById('auth-status').textContent=message;
+  document.querySelectorAll('#login-form button[type="submit"],#register-form button[type="submit"]')
+    .forEach(button=>{ button.disabled=Boolean(message); button.textContent=message ? 'Please wait…' : (button.dataset.label || button.textContent); });
+}
 function roleForUser(role){ return role==='ADMIN'?'admin':role==='MANAGER'?'manager':'student'; }
 async function parseApiResponse(response){
   const body=await response.json().catch(()=>null);
@@ -527,6 +625,20 @@ async function parseApiResponse(response){
     throw new Error(validation || body?.message || body?.error || `Backend returned HTTP ${response.status}`);
   }
   return body;
+}
+async function loadImmigrationDocuments() {
+  try {
+    const response = await apiFetch('/api/v1/profiles/me/documents');
+    state.documents = await parseApiResponse(response);
+    state.documentsError = null;
+  } catch (error) {
+    state.documents = [];
+    state.documentsError = error.message;
+  }
+
+  if (state.view === 'profile') {
+    render();
+  }
 }
 async function apiFetch(path,options={}){
   const headers=new Headers(options.headers || {});
@@ -563,13 +675,47 @@ function submitRegistration(event){
 }
 async function restoreSession(){
   if(!state.token) return;
+
   setAuthBusy('Restoring your session...');
+
   try{
-    const response=await apiFetch('/api/v1/profiles/me');
-    state.user=await parseApiResponse(response);
+    const userResponse = await apiFetch('/api/v1/users/me');
+    state.user = await parseApiResponse(userResponse);
+
+    if(state.user.profileComplete){
+      const profileResponse = await apiFetch('/api/v1/profiles/me');
+      state.profile = await parseApiResponse(profileResponse);
+
+      // Existing policy and RAG UI still read this value from state.user.
+      state.user.visaType = state.profile.visaType;
+      state.ragVisaType = state.profile.visaType || 'F-1';
+    }
+
     enterApp(roleForUser(state.user.role));
-  }catch(error){ sessionStorage.removeItem('mygrantToken'); state.token=null; setAuthMessage(error.message); }
-  finally{ setAuthBusy(''); }
+  }catch(error){
+    sessionStorage.removeItem('mygrantToken');
+    state.token = null;
+    setAuthMessage(error.message);
+  }finally{
+    setAuthBusy('');
+  }
+}
+async function loadProfile(){
+  if(!state.user?.profileComplete) return;
+
+  try{
+    const response = await apiFetch('/api/v1/profiles/me');
+    state.profile = await parseApiResponse(response);
+
+    state.user.visaType = state.profile.visaType;
+    state.ragVisaType = state.profile.visaType || 'F-1';
+
+    if(state.view === 'profile'){
+      render();
+    }
+  }catch(error){
+    showToast(error.message);
+  }
 }
 async function loadPolicies(){
   try{
@@ -603,6 +749,37 @@ async function markNotificationRead(id){
   }catch(error){ showToast(error.message); return; }
   await loadNotifications();
 }
+async function uploadImmigrationDocument(event) {
+  event.preventDefault();
+
+  const documentType = document.getElementById('document-type').value;
+  const fileInput = document.getElementById('immigration-file');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    showToast('Choose a document first.');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('documentType', documentType);
+  formData.append('file', file);
+
+  try {
+    const response = await apiFetch('/api/v1/profiles/me/documents', {
+      method: 'POST',
+      body: formData
+    });
+
+    const uploadedDocument = await parseApiResponse(response);
+    event.target.reset();
+    await loadImmigrationDocuments();
+    showToast(`Uploaded ${uploadedDocument.fileName}.`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 /* ---------------- LIVE NOTIFICATIONS ----------------
    The server pushes each new notification over server-sent events. EventSource cannot
    send the bearer token, so the stream is read through fetch and parsed by hand. */
@@ -681,6 +858,10 @@ function updateUnreadBadge(){
 }
 
 function goto(view, param){
+  if (view === 'profile') {
+    loadProfile();
+    loadImmigrationDocuments();
+  }
   state.view = view;
   if(param) state.openAlert = param;
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active', l.dataset.view===view));
@@ -871,23 +1052,195 @@ function renderProfile(){
   `;
 }
 
+function renderProfileForm(){
+  const profile = state.profile;
+
+  if(!profile){
+    return '<p class="sub">Loading your profile…</p>';
+  }
+
+  return `
+    <form class="form-grid" onsubmit="saveProfile(event)">
+      <div class="field">
+        <label for="profile-visa-type">Visa category</label>
+        <select id="profile-visa-type" required>
+          <option value="F-1" ${profile.visaType === 'F-1' ? 'selected' : ''}>F-1</option>
+          <option value="J-1" ${profile.visaType === 'J-1' ? 'selected' : ''}>J-1</option>
+          <option value="H-1B" ${profile.visaType === 'H-1B' ? 'selected' : ''}>H-1B</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="profile-origin">Country of origin</label>
+        <input id="profile-origin" value="${escapeAttribute(profile.countryOfOrigin || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-citizenship">Country of citizenship</label>
+        <input id="profile-citizenship" value="${escapeAttribute(profile.countryOfCitizenship || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-location">Current location</label>
+        <select id="profile-location">
+          <option value="">Not specified</option>
+          <option value="US" ${profile.currentLocation === 'US' ? 'selected' : ''}>US</option>
+          <option value="ABROAD" ${profile.currentLocation === 'ABROAD' ? 'selected' : ''}>Abroad</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="profile-employment-status">Employment status</label>
+        <input id="profile-employment-status" value="${escapeAttribute(profile.employmentStatus || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-employer">Employer</label>
+        <input id="profile-employer" value="${escapeAttribute(profile.employer || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-visa-start">Visa start date</label>
+        <input id="profile-visa-start" type="date" value="${escapeAttribute(profile.visaStartDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-visa-expiry">Visa expiry date</label>
+        <input id="profile-visa-expiry" type="date" value="${escapeAttribute(profile.visaExpiryDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-opt-start">OPT start date</label>
+        <input id="profile-opt-start" type="date" value="${escapeAttribute(profile.optStartDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-i140-date">I-140 filing date</label>
+        <input id="profile-i140-date" type="date" value="${escapeAttribute(profile.i140FilingDate || '')}">
+      </div>
+
+      <div class="field">
+        <label for="profile-priority-date">Priority date</label>
+        <input id="profile-priority-date" type="date" value="${escapeAttribute(profile.priorityDate || '')}">
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit">Save profile</button>
+      </div>
+    </form>
+  `;
+}
+
+async function saveProfile(event){
+  event.preventDefault();
+
+  const value = id => document.getElementById(id).value.trim();
+  const payload = {
+    visaType: value('profile-visa-type'),
+    countryOfOrigin: value('profile-origin') || null,
+    countryOfCitizenship: value('profile-citizenship') || null,
+    currentLocation: value('profile-location') || null,
+    employmentStatus: value('profile-employment-status') || null,
+    employer: value('profile-employer') || null,
+    visaStartDate: value('profile-visa-start') || null,
+    visaExpiryDate: value('profile-visa-expiry') || null,
+    optStartDate: value('profile-opt-start') || null,
+    i140FilingDate: value('profile-i140-date') || null,
+    priorityDate: value('profile-priority-date') || null
+  };
+
+  try{
+    const response = await apiFetch('/api/v1/profiles/me', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    state.profile = await parseApiResponse(response);
+    state.user.visaType = state.profile.visaType;
+    state.ragVisaType = state.profile.visaType || 'F-1';
+
+    showToast(`Profile saved (version ${state.profile.version}).`);
+    render();
+  }catch(error){
+    showToast(error.message);
+  }
+}
+
 function renderAccountProfile(){
-  const user=state.user || {};
+  const user = state.user || {};
+
   return `
     <div class="page-head">
       <h1>Your profile</h1>
-      <p class="sub">This profile was loaded from PostgreSQL for the signed-in account.</p>
+      <p class="sub">Your saved immigration information and supporting documents.</p>
     </div>
-    <div class="form-grid">
-      <div class="field"><label>Full name</label><input readonly value="${escapeAttribute(user.userName || '')}"></div>
-      <div class="field"><label>Email</label><input readonly value="${escapeAttribute(user.userEmail || '')}"></div>
-      <div class="field"><label>Visa category</label><input readonly value="${escapeAttribute(user.visaType || 'Not specified')}"></div>
-      <div class="field"><label>Academic level</label><input readonly value="${escapeAttribute(user.academicLevel || 'Not specified')}"></div>
-      <div class="field"><label>Program end date</label><input readonly value="${escapeAttribute(user.programEndDate || 'Not specified')}"></div>
-      <div class="field"><label>Current location</label><input readonly value="${escapeAttribute(user.currentLocation==='ABROAD' ? 'Abroad' : (user.currentLocation || 'Not specified'))}"></div>
-      <div class="field"><label>Upcoming travel date</label><input readonly value="${escapeAttribute(user.upcomingTravelDate || 'Not specified')}"></div>
-      <div class="field"><label>Account role</label><input readonly value="${escapeAttribute(user.role || 'APPLICANT')}"></div>
-    </div>`;
+
+    ${renderProfileForm()}
+
+    <div class="page-head" style="margin-top:36px;">
+      <h2>Immigration documents</h2>
+      <p class="sub">Upload a PDF, JPG, JPEG, or PNG file up to 10 MB.</p>
+    </div>
+
+    <form class="form-grid" onsubmit="uploadImmigrationDocument(event)">
+      <div class="field">
+        <label for="document-type">Document type</label>
+        <select id="document-type" required>
+          <option value="PASSPORT">Passport</option>
+          <option value="VISA_STAMP">Visa stamp</option>
+          <option value="I20">Form I-20</option>
+          <option value="DS2019">Form DS-2019</option>
+          <option value="I94">Form I-94</option>
+          <option value="EAD">Employment Authorization Document</option>
+          <option value="I797">Form I-797</option>
+          <option value="I140">Form I-140</option>
+          <option value="PERM">PERM</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="immigration-file">Choose file</label>
+        <input
+          id="immigration-file"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          required
+        >
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit">Upload document</button>
+      </div>
+    </form>
+
+    <div style="margin-top:30px;">
+  <h3>Uploaded documents</h3>
+
+  ${state.documentsError
+    ? `<div class="rag-error">${escapeHtml(state.documentsError)}</div>`
+    : ''}
+
+  ${state.documents === null
+    ? '<p class="sub">Loading documents...</p>'
+    : state.documents.length === 0
+      ? '<p class="sub">No documents uploaded yet.</p>'
+      : state.documents.map(document => `
+          <div class="entry urgency-low">
+            <div class="flag"></div>
+            <div class="entry-body">
+              <h3>${escapeHtml(document.fileName)}</h3>
+              <div class="tag-row">
+                <span class="tag">${escapeHtml(document.documentType)}</span>
+                <span class="tag">${Math.round(document.sizeBytes / 1024)} KB</span>
+              </div>
+            </div>
+          </div>
+        `).join('')
+  }
+</div>
+  `;
 }
 
 function renderManager(){
@@ -1205,6 +1558,7 @@ function addSource(){
   render();
 }
 restoreSession();
+if(workosRedirectError) setAuthMessage(workosRedirectError);
 </script>
 </body>
 </html>

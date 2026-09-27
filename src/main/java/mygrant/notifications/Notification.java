@@ -28,6 +28,9 @@ public class Notification {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "profile_version", nullable = false)
+    private int profileVersion; 
+
     @Column(name = "policy_id", nullable = false)
     private Long policyId;
 
@@ -50,13 +53,15 @@ public class Notification {
     protected Notification() {
     }
 
-    public Notification(Long userId, Long policyId, String message, List<ProfileField> affectedFields) {
+    public Notification(Long userId, int profileVersion, Long policyId,
+        String message, List<ProfileField> affectedFields) {
         this.userId = userId;
         this.policyId = policyId;
         this.message = message;
         this.actionRequired = !affectedFields.isEmpty();
         this.affectedFields = affectedFields.isEmpty() ? null
                 : affectedFields.stream().map(ProfileField::name).collect(Collectors.joining(","));
+        this.profileVersion = profileVersion;
     }
 
     public Long getId() { return id; }
@@ -66,6 +71,7 @@ public class Notification {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getReadAt() { return readAt; }
     public boolean isActionRequired() { return actionRequired; }
+    public int getProfileVersion() { return profileVersion; }   
 
     public List<ProfileField> getAffectedFields() {
         if (affectedFields == null || affectedFields.isBlank()) {

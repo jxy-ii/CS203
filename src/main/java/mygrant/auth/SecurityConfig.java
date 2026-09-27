@@ -42,7 +42,9 @@ public class SecurityConfig {
                 // and the JWT filter does not run again for that dispatch.
                 .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers("/", "/mygrant-prototype.html", "/favicon.ico",
-                        "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                        "/api/v1/auth/register", "/api/v1/auth/login",
+                        "/api/v1/auth/workos/login", "/api/v1/auth/workos/callback",
+                        "/api/v1/webhooks/workos").permitAll()
                 // API docs and the health probe are public; the endpoints they describe
                 // still require a JWT, which Swagger UI sends via its Authorize button.
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",

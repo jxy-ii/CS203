@@ -35,6 +35,21 @@ public class JwtService {
                 .compact();
     }
 
+    public String generateStateToken() {
+        Date issuedAt = new Date();
+        Date expiration = new Date(issuedAt.getTime() + 10 * 60 * 1000L);
+        return Jwts.builder()
+                .subject("workos-oauth-state")
+                .issuedAt(issuedAt)
+                .expiration(expiration)
+                .signWith(signingKey)
+                .compact();
+    }
+
+    public boolean isValidStateToken(String token) {
+        return isTokenValid(token, "workos-oauth-state");
+    }
+
     public String extractSubject(String token) {
         return parseClaims(token).getSubject();
     }

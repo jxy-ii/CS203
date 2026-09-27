@@ -17,6 +17,7 @@ public class LoginResponse {
     private LocalDate upcomingTravelDate;
     private String token; // Optional placeholder for JWT authentication
     private UserRole role;
+    private boolean profileComplete;
 
     public LoginResponse() {}
 
@@ -31,6 +32,7 @@ public class LoginResponse {
         this.currentLocation = user.getCurrentLocation();
         this.upcomingTravelDate = user.getUpcomingTravelDate();
         this.role = user.getRole();
+        this.profileComplete = user.isProfileComplete();
     }
 
     public LoginResponse(User user, String token) {
@@ -118,5 +120,13 @@ public class LoginResponse {
 
     public void setRole(UserRole role) {
         this.role = role;
+    }
+
+    public boolean isProfileComplete() {
+        return profileComplete;
+    }
+
+    public void setProfileComplete(boolean profileComplete) {
+        this.profileComplete = profileComplete;
     }
 }
