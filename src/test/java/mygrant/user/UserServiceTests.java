@@ -1,18 +1,19 @@
 package mygrant.user;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import java.time.Instant;
 import java.time.LocalDate;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -117,6 +118,27 @@ class UserServiceTests {
         assertThatThrownBy(() -> service().loginUser(login))
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessage("Invalid email or password");
+    }
+
+    @Test
+    void rejectsLoginForDeletedInactiveAccount() {
+        UserLogin login = new UserLogin();
+        login.setUserEmail("student@example.com");
+        login.setUserPassword("password1");
+
+        User deletedUser = new User();
+        deletedUser.setEmail("student@example.com");
+        deletedUser.setPasswordHash("hash");
+        deletedUser.anonymizeAndDeactivate(Instant.now());
+
+        when(userRepository.findByEmail("student@example.com"))
+                .thenReturn(java.util.Optional.of(deletedUser));
+
+        assertThatThrownBy(() -> service().loginUser(login))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid email or password");
+
+        verifyNoInteractions(jwtService);
     }
 
     private UserCreation registration() {
